@@ -1,0 +1,13 @@
+{
+  "TestPlayer::TestBurger": {
+    "name": "TestPlayer",
+    "restaurant": "TestBurger",
+    "votes": [
+      {
+        "voter": "123",
+        "stars": 5,
+        "time": 1774790074.4253056
+      }
+    ]
+  }
+}

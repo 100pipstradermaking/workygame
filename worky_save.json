@@ -1,0 +1,25 @@
+{
+  "player": {
+    "player_name": "123",
+    "restaurant_name": "123",
+    "coins": 0.0,
+    "total_income": 0.0,
+    "prestige_level": 1,
+    "prestige_multiplier": 1.186892891482905,
+    "workers": [],
+    "upgrades_purchased": {},
+    "active_bonus_multiplier": 1.0,
+    "active_bonus_timer": 0.0
+  },
+  "economy": {
+    "event_timer": 0.23400000000000004,
+    "dinein_income": 25139.320426496568,
+    "takeout_income": 9789.632460344974,
+    "dinein_orders": 20137,
+    "takeout_orders": 14790
+  },
+  "timestamp": 1774793653.513957,
+  "restaurant": {
+    "worker_sprites": []
+  }
+}
