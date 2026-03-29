@@ -19,16 +19,16 @@ UPGRADE_DEFS: list[dict] = [
         "id": "prod_speed",
         "name": "Faster Grills",
         "category": "Production",
-        "base_cost": 50,
-        "desc": "+10% worker speed per level",
+        "base_cost": 30,
+        "desc": "+15% worker speed per level",
         "max_level": 50,
     },
     {
         "id": "prod_efficiency",
         "name": "Better Ingredients",
         "category": "Production",
-        "base_cost": 75,
-        "desc": "+10% worker efficiency per level",
+        "base_cost": 45,
+        "desc": "+15% worker efficiency per level",
         "max_level": 50,
     },
     # ── Sales ─────────────────────────────────────────────────
@@ -36,15 +36,15 @@ UPGRADE_DEFS: list[dict] = [
         "id": "sales_multiplier",
         "name": "Marketing Campaign",
         "category": "Sales",
-        "base_cost": 200,
-        "desc": "+15% income multiplier per level",
+        "base_cost": 120,
+        "desc": "+20% income multiplier per level",
         "max_level": 30,
     },
     {
         "id": "sales_event_chance",
         "name": "Lucky Seasoning",
         "category": "Sales",
-        "base_cost": 500,
+        "base_cost": 300,
         "desc": "Events checked more often (-0.3s interval/lvl)",
         "max_level": 10,
     },
@@ -53,7 +53,7 @@ UPGRADE_DEFS: list[dict] = [
         "id": "auto_hire",
         "name": "Recruitment Agency",
         "category": "Automation",
-        "base_cost": 1000,
+        "base_cost": 600,
         "desc": "-5% hire cost per level",
         "max_level": 20,
     },
@@ -61,7 +61,7 @@ UPGRADE_DEFS: list[dict] = [
         "id": "auto_upgrade",
         "name": "Training Program",
         "category": "Automation",
-        "base_cost": 800,
+        "base_cost": 500,
         "desc": "-5% worker upgrade cost per level",
         "max_level": 20,
     },
@@ -104,15 +104,15 @@ def buy_upgrade(player: "Player", upgrade_id: str) -> bool:
 # ── Apply upgrade effects to gameplay values ─────────────────
 def get_speed_multiplier(player: "Player") -> float:
     lvl = get_upgrade_level(player, "prod_speed")
-    return 1.0 + lvl * 0.10
+    return 1.0 + lvl * 0.15
 
 def get_efficiency_multiplier(player: "Player") -> float:
     lvl = get_upgrade_level(player, "prod_efficiency")
-    return 1.0 + lvl * 0.10
+    return 1.0 + lvl * 0.15
 
 def get_income_multiplier(player: "Player") -> float:
     lvl = get_upgrade_level(player, "sales_multiplier")
-    return 1.0 + lvl * 0.15
+    return 1.0 + lvl * 0.20
 
 def get_event_interval_reduction(player: "Player") -> float:
     lvl = get_upgrade_level(player, "sales_event_chance")

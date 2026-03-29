@@ -9,11 +9,11 @@ from player import Player
 
 # Super-burger event tiers
 SUPER_BURGER_EVENTS = [
-    {"name": "Rare Burger",      "chance": 0.05,  "multiplier": 5,   "duration": 10.0,
+    {"name": "Rare Burger",      "chance": 0.08,  "multiplier": 5,   "duration": 12.0,
      "color": (80, 140, 240)},
-    {"name": "Epic Burger",      "chance": 0.02,  "multiplier": 20,  "duration": 8.0,
+    {"name": "Epic Burger",      "chance": 0.04,  "multiplier": 20,  "duration": 10.0,
      "color": (180, 80, 240)},
-    {"name": "Legendary Burger", "chance": 0.005, "multiplier": 100, "duration": 5.0,
+    {"name": "Legendary Burger", "chance": 0.01,  "multiplier": 100, "duration": 7.0,
      "color": (255, 200, 50)},
 ]
 

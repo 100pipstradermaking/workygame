@@ -9,15 +9,15 @@ from sprites import pick_archetype, pick_skin_tone
 
 # Rarity tiers: name -> (probability weight, base_speed, base_efficiency, color)
 RARITIES = {
-    "common":    {"weight": 70, "speed": 1.0, "efficiency": 1.0, "color": (180, 180, 180)},
-    "uncommon":  {"weight": 20, "speed": 1.3, "efficiency": 1.2, "color": (100, 200, 100)},
-    "rare":      {"weight": 7,  "speed": 1.6, "efficiency": 1.5, "color": (80, 140, 240)},
-    "epic":      {"weight": 2.5, "speed": 2.0, "efficiency": 2.0, "color": (180, 80, 240)},
-    "legendary": {"weight": 0.5, "speed": 3.0, "efficiency": 3.0, "color": (255, 200, 50)},
+    "common":    {"weight": 70, "speed": 2.0, "efficiency": 1.0, "color": (180, 180, 180)},
+    "uncommon":  {"weight": 20, "speed": 2.6, "efficiency": 1.2, "color": (100, 200, 100)},
+    "rare":      {"weight": 7,  "speed": 3.2, "efficiency": 1.5, "color": (80, 140, 240)},
+    "epic":      {"weight": 2.5, "speed": 4.0, "efficiency": 2.0, "color": (180, 80, 240)},
+    "legendary": {"weight": 0.5, "speed": 6.0, "efficiency": 3.0, "color": (255, 200, 50)},
 }
 
-BASE_HIRE_COST = 10.0
-HIRE_COST_EXPONENT = 1.15
+BASE_HIRE_COST = 8.0
+HIRE_COST_EXPONENT = 1.12
 
 
 class Worker:
