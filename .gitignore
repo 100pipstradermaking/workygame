@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+build/web-cache/
+worky_save.json
+worky_votes.json
+worky_leaderboard.json
+test_all.py
