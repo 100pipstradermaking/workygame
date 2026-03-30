@@ -1,6 +1,7 @@
 """
-leaderboard.py — Local leaderboard & voting system.
-Stores top player scores and restaurant ratings in JSON files.
+leaderboard.py — Leaderboard & voting system with online sync.
+Stores top player scores and restaurant ratings in JSON files (local)
+and syncs with online backend via GitHub repo.
 Tracks: total_income, prestige_level, workers_count, burgers_made, votes.
 """
 
@@ -16,6 +17,11 @@ from theme import (TEXT_GOLD as LB_HEADER, TEXT_WHITE as LB_TEXT,
                    STAR_ON as LB_STAR_ON, STAR_OFF as LB_STAR_OFF,
                    STAR_HOVER as LB_STAR_HOVER)
 import icons
+from online import (
+    fetch_online_leaderboard, push_score_online,
+    push_vote_online, fetch_online_votes, is_web,
+    web_save, web_load,
+)
 
 LEADERBOARD_FILE = "worky_leaderboard.json"
 VOTES_FILE = "worky_votes.json"
@@ -23,6 +29,11 @@ MAX_ENTRIES = 50
 
 
 def _load_entries() -> list[dict]:
+    if is_web():
+        data = web_load("leaderboard")
+        if data:
+            return data.get("entries", [])
+        return []
     if not os.path.exists(LEADERBOARD_FILE):
         return []
     with open(LEADERBOARD_FILE, "r", encoding="utf-8") as f:
@@ -31,6 +42,9 @@ def _load_entries() -> list[dict]:
 
 
 def _save_entries(entries: list[dict]):
+    if is_web():
+        web_save("leaderboard", {"entries": entries})
+        return
     tmp = LEADERBOARD_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump({"entries": entries}, f, indent=2)
@@ -77,13 +91,45 @@ def submit_score(player, restaurant=None):
     entries = entries[:MAX_ENTRIES]
 
     _save_entries(entries)
+
+    # Also push to online leaderboard (async-friendly, non-blocking)
+    try:
+        push_score_online(entry)
+    except Exception:
+        pass
+
     return entries
 
 
 def get_leaderboard() -> list[dict]:
-    entries = _load_entries()
+    # Merge local + online entries
+    local_entries = _load_entries()
+    online_entries = []
+    try:
+        online_entries = fetch_online_leaderboard()
+    except Exception:
+        pass
+
+    # Merge: combine by (name, restaurant) key, prefer higher score
+    merged = {}
+    for e in local_entries + online_entries:
+        key = (e.get("name", ""), e.get("restaurant", ""))
+        if key not in merged or e.get("score", 0) > merged[key].get("score", 0):
+            merged[key] = e
+    entries = sorted(merged.values(), key=lambda e: e.get("score", 0), reverse=True)
+
+    # Attach vote data
     votes = _load_votes()
-    # Attach rating data to each entry
+    online_votes = {}
+    try:
+        online_votes = fetch_online_votes()
+    except Exception:
+        pass
+    # Merge votes
+    for k, v in online_votes.items():
+        if k not in votes:
+            votes[k] = v
+
     for e in entries:
         key = _vote_key(e["name"], e["restaurant"])
         vdata = votes.get(key, {})
@@ -101,6 +147,9 @@ def _vote_key(name: str, restaurant: str) -> str:
 
 
 def _load_votes() -> dict:
+    if is_web():
+        data = web_load("votes")
+        return data if data else {}
     if not os.path.exists(VOTES_FILE):
         return {}
     with open(VOTES_FILE, "r", encoding="utf-8") as f:
@@ -108,6 +157,9 @@ def _load_votes() -> dict:
 
 
 def _save_votes(votes: dict):
+    if is_web():
+        web_save("votes", votes)
+        return
     tmp = VOTES_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(votes, f, indent=2)
@@ -138,10 +190,19 @@ def cast_vote(voter_name: str, target_name: str, target_restaurant: str,
             v["stars"] = stars
             v["time"] = time.time()
             _save_votes(votes)
+            # Try online
+            try:
+                push_vote_online(voter_name, target_name, target_restaurant, stars)
+            except Exception:
+                pass
             return True
 
     vote_list.append({"voter": voter_name, "stars": stars, "time": time.time()})
     _save_votes(votes)
+    try:
+        push_vote_online(voter_name, target_name, target_restaurant, stars)
+    except Exception:
+        pass
     return True
 
 

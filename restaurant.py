@@ -114,41 +114,85 @@ class Station:
         ps = 4
 
         if self.id == "storage":
-            for dx in range(-2, 3):
-                for dy in range(-1, 2):
-                    pygame.draw.rect(surf, self.icon_color,
-                                     (cx + dx * ps - ps, cy + dy * ps - ps, ps, ps))
-            pygame.draw.rect(surf, (100, 70, 40), (cx - ps, cy - ps // 2, ps * 2, ps))
-            pygame.draw.rect(surf, (100, 70, 40), (cx - ps // 2, cy - ps, ps, ps * 2))
+            # Stacked crates with shading
+            for row in range(3):
+                for col in range(2):
+                    bx = cx - 5 * ps // 2 + col * 3 * ps
+                    by = cy - 2 * ps + row * 2 * ps - ps
+                    c = self.icon_color
+                    cs = (max(0, c[0]-30), max(0, c[1]-30), max(0, c[2]-20))
+                    pygame.draw.rect(surf, c, (bx, by, 2*ps, ps+ps//2))
+                    pygame.draw.rect(surf, cs, (bx+ps, by, ps, ps+ps//2))
+                    pygame.draw.rect(surf, (100, 70, 40), (bx, by, 2*ps, ps+ps//2), 1)
+            # Cross tape on front crate
+            pygame.draw.line(surf, (100, 70, 40), (cx-ps, cy-ps), (cx+ps, cy+ps), 1)
+            pygame.draw.line(surf, (100, 70, 40), (cx+ps, cy-ps), (cx-ps, cy+ps), 1)
 
         elif self.id == "grill":
-            # Animated fire flames that flicker
-            for i, base_c in enumerate([(255, 60, 20), (255, 140, 30), (255, 200, 60)]):
-                fh = (3 - i) * ps
-                fw = (3 - i) * ps
-                flicker = int(2 * math.sin(t * 8 + i * 1.5))
-                r = min(255, base_c[0] + flicker * 10)
-                g = min(255, base_c[1] + flicker * 5)
-                pygame.draw.rect(surf, (r, g, base_c[2]),
-                                 (cx - fw // 2 + flicker, cy - fh + ps - abs(flicker),
-                                  fw, fh + abs(flicker)))
-            # Grill lines
-            for dx in range(-2, 3):
-                pygame.draw.rect(surf, (80, 80, 90),
-                                 (cx + dx * ps - ps // 2, cy + ps, ps // 2, ps))
+            # Grill body
+            pygame.draw.rect(surf, (70, 70, 80), (cx-3*ps, cy, 6*ps, 2*ps))
+            pygame.draw.rect(surf, (55, 55, 65), (cx-3*ps, cy+ps, 6*ps, ps))
+            # Grill grate lines
+            for i in range(5):
+                gx = cx - 2*ps + i * ps
+                pygame.draw.rect(surf, (90, 90, 100), (gx, cy, ps//2, 2*ps))
+            # Animated flames
+            for i in range(5):
+                fx = cx - 2*ps + i * ps
+                flicker = int(2 * math.sin(t * 10 + i * 1.8))
+                fh = ps + abs(flicker) + random.randint(0, 1)
+                colors = [(255, 60, 20), (255, 140, 30), (255, 200, 60)]
+                fc = colors[i % 3]
+                r = min(255, fc[0] + flicker * 8)
+                g = min(255, fc[1] + flicker * 4)
+                pygame.draw.rect(surf, (r, g, fc[2]),
+                                 (fx, cy - fh + flicker, ps//2+1, fh))
+            # Heat shimmer
+            for i in range(3):
+                sx = cx - ps + i * ps
+                sy_off = int(math.sin(t * 6 + i) * 2)
+                pygame.draw.rect(surf, (255, 200, 100),
+                                 (sx, cy - 2*ps + sy_off, ps//2, ps//2))
 
         elif self.id == "assembly":
-            colors = [(210, 160, 60), (100, 50, 20), (60, 180, 60), (190, 140, 50)]
-            for i, c in enumerate(colors):
-                pygame.draw.rect(surf, c,
-                                 (cx - 2 * ps, cy - 2 * ps + i * ps, 4 * ps, ps))
+            # Detailed burger layers with shading
+            bx = cx - 3*ps//2
+            by_base = cy - 2*ps
+            layers = [
+                ((210, 160, 60), (190, 140, 45)),   # bottom bun
+                ((100, 50, 20), (80, 35, 12)),       # patty
+                ((60, 180, 60), (45, 150, 45)),      # lettuce
+                ((220, 50, 40), (190, 35, 30)),      # tomato
+                ((255, 200, 60), (230, 175, 40)),    # cheese
+                ((220, 170, 70), (200, 150, 55)),    # top bun
+            ]
+            for i, (c, cs) in enumerate(layers):
+                ly = by_base + i * (ps - 1)
+                lw = 3*ps if i in (0, 5) else 3*ps + ps//2
+                lx = bx - (lw - 3*ps) // 2
+                pygame.draw.rect(surf, c, (lx, ly, lw, ps-1))
+                pygame.draw.rect(surf, cs, (lx + lw//2, ly, lw//2, ps-1))
+            # Sesame seeds on top bun
+            pygame.draw.rect(surf, (255, 240, 200), (bx+ps//2, by_base+(len(layers)-1)*(ps-1), 1, 1))
+            pygame.draw.rect(surf, (255, 240, 200), (bx+2*ps, by_base+(len(layers)-1)*(ps-1), 1, 1))
 
         elif self.id == "counter":
+            # Polished counter with register
             pygame.draw.rect(surf, self.icon_color,
-                             (cx - ps, cy - ps, ps * 3, ps * 2))
-            pygame.draw.rect(surf, (200, 170, 60),
-                             (cx - ps, cy - 2 * ps, ps * 3, ps))
-            pygame.draw.rect(surf, (100, 70, 30), (cx, cy - ps, ps, ps))
+                             (cx - 2*ps, cy - ps//2, 4*ps, ps+ps//2))
+            cs = (max(0, self.icon_color[0]-30), max(0, self.icon_color[1]-30),
+                  max(0, self.icon_color[2]-20))
+            pygame.draw.rect(surf, cs, (cx, cy - ps//2, 2*ps, ps+ps//2))
+            pygame.draw.rect(surf, (60, 55, 50), (cx - 2*ps, cy - ps//2, 4*ps, ps+ps//2), 1)
+            # Cash register
+            pygame.draw.rect(surf, (80, 80, 90), (cx - ps, cy - 2*ps, 2*ps, ps+ps//2))
+            pygame.draw.rect(surf, (60, 60, 70), (cx, cy - 2*ps, ps, ps+ps//2))
+            # Screen on register
+            pygame.draw.rect(surf, (100, 200, 100), (cx - ps//2, cy - 2*ps + 1, ps, ps//2))
+            # Bell
+            bell_bob = int(math.sin(t * 3) * 1)
+            pygame.draw.rect(surf, (220, 200, 60), (cx + 2*ps, cy - ps + bell_bob, ps, ps))
+            pygame.draw.rect(surf, (200, 180, 50), (cx + 2*ps, cy + bell_bob, ps, ps//2))
 
     def update(self, dt: float):
         if self.active_timer > 0:
@@ -225,34 +269,126 @@ class CustomerNPC:
         sx = int(self.x + ox)
         sy = int(self.y + oy)
         PX = 2
+        shirt_s = (max(0, self.shirt[0]-30), max(0, self.shirt[1]-30),
+                   max(0, self.shirt[2]-30))
+        skin_s = (max(0, self.skin[0]-20), max(0, self.skin[1]-20),
+                  max(0, self.skin[2]-15))
 
         # Shadow
         pygame.draw.ellipse(surf, (0, 0, 0, 50),
-                            (sx - 5 * PX, sy + 7 * PX, 10 * PX, 3 * PX))
-        # Body
-        pygame.draw.rect(surf, self.shirt, (sx - 3 * PX, sy - 2 * PX, 6 * PX, 5 * PX))
-        # Head
-        pygame.draw.rect(surf, self.skin, (sx - 3 * PX, sy - 6 * PX, 6 * PX, 4 * PX))
-        # Eyes
-        if self.direction != "up":
-            pygame.draw.rect(surf, (30, 30, 40), (sx - 2 * PX, sy - 4 * PX, PX, PX))
-            pygame.draw.rect(surf, (30, 30, 40), (sx + 1 * PX, sy - 4 * PX, PX, PX))
-        # Legs
+                            (sx - 5 * PX, sy + 8 * PX, 10 * PX, 4 * PX))
+
+        # Shoes
+        shoe_c = (50, 40, 35)
         walk = 0
         if self.state in ("entering", "leaving"):
             walk = int(math.sin(anim_t * 8) * PX)
-        pygame.draw.rect(surf, (50, 45, 55),
-                         (sx - 2 * PX, sy + 3 * PX + walk, 2 * PX, 3 * PX))
-        pygame.draw.rect(surf, (50, 45, 55),
-                         (sx, sy + 3 * PX - walk, 2 * PX, 3 * PX))
+        pygame.draw.rect(surf, shoe_c,
+                         (sx - 2 * PX, sy + 6 * PX + walk, 2 * PX, 2 * PX))
+        pygame.draw.rect(surf, shoe_c,
+                         (sx, sy + 6 * PX - walk, 2 * PX, 2 * PX))
+        # Shoe sole
+        pygame.draw.rect(surf, (35, 28, 22),
+                         (sx - 2 * PX, sy + 7 * PX + walk, 2 * PX, PX))
+        pygame.draw.rect(surf, (35, 28, 22),
+                         (sx, sy + 7 * PX - walk, 2 * PX, PX))
 
-        # Eating animation — burger in hand
+        # Legs / Pants
+        pants_c = (50, 45, 55)
+        pants_s = (38, 33, 43)
+        pygame.draw.rect(surf, pants_c,
+                         (sx - 2 * PX, sy + 3 * PX + walk, 2 * PX, 3 * PX))
+        pygame.draw.rect(surf, pants_c,
+                         (sx, sy + 3 * PX - walk, 2 * PX, 3 * PX))
+        # Inner leg shade
+        pygame.draw.rect(surf, pants_s,
+                         (sx - PX, sy + 3 * PX, PX, 3 * PX))
+
+        # Body / Shirt
+        pygame.draw.rect(surf, self.shirt, (sx - 4 * PX, sy - 2 * PX, 8 * PX, 5 * PX))
+        # Shirt shading (right side)
+        pygame.draw.rect(surf, shirt_s, (sx + PX, sy - 2 * PX, 3 * PX, 5 * PX))
+        # Shirt bottom shade
+        pygame.draw.rect(surf, shirt_s, (sx - 4 * PX, sy + 2 * PX, 8 * PX, PX))
+        # Collar
+        collar_c = (min(255, self.shirt[0]+20), min(255, self.shirt[1]+20),
+                    min(255, self.shirt[2]+20))
+        pygame.draw.rect(surf, collar_c, (sx - 2 * PX, sy - 2 * PX, 4 * PX, PX))
+
+        # Arms
+        pygame.draw.rect(surf, self.shirt,
+                         (sx - 5 * PX, sy - PX, PX, 3 * PX))
+        pygame.draw.rect(surf, self.shirt,
+                         (sx + 4 * PX, sy - PX, PX, 3 * PX))
+        # Hands
+        pygame.draw.rect(surf, self.skin,
+                         (sx - 5 * PX, sy + 2 * PX, PX, PX))
+        pygame.draw.rect(surf, self.skin,
+                         (sx + 4 * PX, sy + 2 * PX, PX, PX))
+
+        # Head with outline
+        pygame.draw.rect(surf, (max(0, self.skin[0]-40), max(0, self.skin[1]-40),
+                                max(0, self.skin[2]-30)),
+                         (sx - 4 * PX, sy - 8 * PX, 8 * PX, 6 * PX))
+        pygame.draw.rect(surf, self.skin, (sx - 3 * PX, sy - 7 * PX, 7 * PX, 5 * PX))
+        # Face shading
+        pygame.draw.rect(surf, skin_s, (sx + 2 * PX, sy - 7 * PX, 2 * PX, 5 * PX))
+        # Ears
+        pygame.draw.rect(surf, self.skin, (sx - 4 * PX, sy - 5 * PX, PX, 2 * PX))
+        pygame.draw.rect(surf, self.skin, (sx + 4 * PX, sy - 5 * PX, PX, 2 * PX))
+
+        # Hair (simple top strip with color variation)
+        hair_c = (60 + hash(id(self)) % 60, 40 + hash(id(self)) % 40,
+                  30 + hash(id(self)) % 30)
+        pygame.draw.rect(surf, hair_c, (sx - 3 * PX, sy - 8 * PX, 7 * PX, 2 * PX))
+        pygame.draw.rect(surf, hair_c, (sx - 4 * PX, sy - 7 * PX, PX, 2 * PX))
+        pygame.draw.rect(surf, hair_c, (sx + 4 * PX, sy - 7 * PX, PX, PX))
+
+        # Eyes
+        if self.direction != "up":
+            # Eye whites
+            pygame.draw.rect(surf, (240, 240, 250),
+                             (sx - 2 * PX, sy - 5 * PX, 2 * PX, 2 * PX))
+            pygame.draw.rect(surf, (240, 240, 250),
+                             (sx + PX, sy - 5 * PX, 2 * PX, 2 * PX))
+            # Pupils
+            pygame.draw.rect(surf, (25, 25, 35),
+                             (sx - PX, sy - 4 * PX, PX, PX))
+            pygame.draw.rect(surf, (25, 25, 35),
+                             (sx + 2 * PX, sy - 4 * PX, PX, PX))
+            # Highlights
+            pygame.draw.rect(surf, (255, 255, 255),
+                             (sx - 2 * PX, sy - 5 * PX, PX, PX))
+            pygame.draw.rect(surf, (255, 255, 255),
+                             (sx + PX, sy - 5 * PX, PX, PX))
+            # Eyebrows
+            pygame.draw.rect(surf, hair_c,
+                             (sx - 2 * PX, sy - 6 * PX, 2 * PX, PX))
+            pygame.draw.rect(surf, hair_c,
+                             (sx + PX, sy - 6 * PX, 2 * PX, PX))
+        # Mouth
+        if self.state == "eating":
+            pygame.draw.rect(surf, (200, 100, 90),
+                             (sx - PX, sy - 3 * PX, 2 * PX, PX))
+        else:
+            pygame.draw.rect(surf, (180, 100, 90),
+                             (sx, sy - 3 * PX, PX, PX))
+        # Nose
+        pygame.draw.rect(surf, skin_s, (sx, sy - 4 * PX, PX, PX))
+
+        # Eating animation — detailed burger in hand
         if self.state == "eating":
             bob = int(math.sin(anim_t * 4) * PX)
-            pygame.draw.rect(surf, (200, 160, 60),
-                             (sx + 3 * PX, sy - 2 * PX + bob, 3 * PX, 2 * PX))
-            pygame.draw.rect(surf, (100, 50, 20),
-                             (sx + 3 * PX, sy - 1 * PX + bob, 3 * PX, PX))
+            bx = sx + 5 * PX
+            by = sy - 2 * PX + bob
+            # Bun top
+            pygame.draw.rect(surf, (210, 165, 65), (bx, by, 3 * PX, PX))
+            # Lettuce
+            pygame.draw.rect(surf, (80, 190, 80), (bx - PX//2, by + PX, 3 * PX + PX//2, PX//2+1))
+            # Patty
+            pygame.draw.rect(surf, (100, 50, 20), (bx, by + PX, 3 * PX, PX))
+            # Bun bottom
+            pygame.draw.rect(surf, (200, 155, 55), (bx, by + 2 * PX, 3 * PX, PX))
 
         # Satisfaction bubble
         if self.state == "leaving" and self.sat_timer > 0:
@@ -262,7 +398,7 @@ class CustomerNPC:
             ts = pygame.Surface(txt.get_size(), pygame.SRCALPHA)
             ts.blit(txt, (0, 0))
             ts.set_alpha(alpha)
-            surf.blit(ts, (sx - txt.get_width() // 2, sy - 12 * PX))
+            surf.blit(ts, (sx - txt.get_width() // 2, sy - 14 * PX))
 
 
 # ── Particle effects ─────────────────────────────────────────
@@ -971,31 +1107,85 @@ class Restaurant:
             h = dec["h"] * TILE_SIZE
 
             if dec["type"] == "table":
-                pygame.draw.rect(surf, dec["color"], (x, y, w, h))
-                pygame.draw.rect(surf, (90, 60, 30), (x, y, w, h), 1)
-                # Plate
-                pygame.draw.circle(surf, (220, 220, 220),
-                                   (x + w // 2, y + h // 2), 5, 1)
+                tc = dec["color"]
+                tc_s = (max(0, tc[0]-25), max(0, tc[1]-25), max(0, tc[2]-20))
+                tc_h = (min(255, tc[0]+15), min(255, tc[1]+15), min(255, tc[2]+10))
+                # Table shadow
+                shadow = pygame.Surface((w, h), pygame.SRCALPHA)
+                shadow.fill((0, 0, 0, 25))
+                surf.blit(shadow, (x + 2, y + 2))
+                # Table top
+                pygame.draw.rect(surf, tc, (x, y, w, h))
+                # Highlight on top edge
+                pygame.draw.rect(surf, tc_h, (x + 1, y, w - 2, 2))
+                # Shade on right and bottom
+                pygame.draw.rect(surf, tc_s, (x + w - 2, y, 2, h))
+                pygame.draw.rect(surf, tc_s, (x, y + h - 2, w, 2))
+                # Edge outline
+                pygame.draw.rect(surf, (70, 50, 25), (x, y, w, h), 1)
+                # Plate with food hint
+                cx, cy = x + w // 2, y + h // 2
+                pygame.draw.circle(surf, (230, 230, 235), (cx, cy), 5)
+                pygame.draw.circle(surf, (210, 210, 215), (cx, cy), 5, 1)
+                pygame.draw.circle(surf, (200, 150, 60), (cx, cy), 2)
+                # Napkin (small square near edge)
+                pygame.draw.rect(surf, (240, 240, 245), (x + 3, y + h - 5, 4, 4))
+                pygame.draw.rect(surf, (220, 220, 225), (x + 3, y + h - 5, 4, 4), 1)
 
             elif dec["type"] == "chair":
-                pygame.draw.rect(surf, dec["color"], (x + 2, y + 2, w - 4, h - 4))
+                cc = dec["color"]
+                cc_s = (max(0, cc[0]-20), max(0, cc[1]-20), max(0, cc[2]-15))
+                # Seat
+                pygame.draw.rect(surf, cc, (x + 2, y + 2, w - 4, h - 4))
+                # Seat shading
+                pygame.draw.rect(surf, cc_s, (x + w//2, y + 2, w//2 - 2, h - 4))
+                # Backrest hint
+                pygame.draw.rect(surf, cc_s, (x + 2, y + 1, w - 4, 2))
+                # Legs (corners)
+                leg_c = (max(0, cc[0]-40), max(0, cc[1]-40), max(0, cc[2]-35))
+                pygame.draw.rect(surf, leg_c, (x + 1, y + h - 3, 2, 3))
+                pygame.draw.rect(surf, leg_c, (x + w - 3, y + h - 3, 2, 3))
 
             elif dec["type"] == "plant":
-                # Pot
-                pygame.draw.rect(surf, (140, 90, 50),
-                                 (x + 4, y + h - 8, w - 8, 8))
-                # Leaves
-                for _ in range(5):
-                    lx = x + w // 2 + random.randint(-6, 6)
-                    ly = y + random.randint(2, h - 10)
-                    pygame.draw.circle(surf, dec["color"], (lx, ly), 4)
+                pc = dec["color"]
+                # Pot body (trapezoid effect)
+                pot_c = (160, 100, 55)
+                pot_s = (130, 80, 40)
+                pygame.draw.rect(surf, pot_c, (x + 3, y + h - 10, w - 6, 10))
+                pygame.draw.rect(surf, pot_s, (x + w//2, y + h - 10, (w-6)//2, 10))
+                # Pot rim
+                pygame.draw.rect(surf, (180, 120, 65), (x + 2, y + h - 10, w - 4, 2))
+                # Soil
+                pygame.draw.rect(surf, (80, 55, 30), (x + 4, y + h - 10, w - 8, 2))
+                # Leaves (varied positions)
+                leaf_c = pc
+                leaf_s = (max(0, pc[0]-25), max(0, pc[1]-25), max(0, pc[2]-20))
+                lcx = x + w // 2
+                # Main foliage cluster
+                pygame.draw.circle(surf, leaf_c, (lcx, y + h - 14), 5)
+                pygame.draw.circle(surf, leaf_s, (lcx + 3, y + h - 13), 4)
+                pygame.draw.circle(surf, leaf_c, (lcx - 4, y + h - 16), 4)
+                pygame.draw.circle(surf, leaf_c, (lcx + 3, y + h - 17), 3)
+                # Stem
+                pygame.draw.rect(surf, (60, 100, 40), (lcx - 1, y + h - 13, 2, 4))
 
             elif dec["type"] == "door":
-                pygame.draw.rect(surf, dec["color"], (x, y, w, h))
-                pygame.draw.rect(surf, (70, 50, 30), (x, y, w, h), 2)
-                # Welcome mat
-                pygame.draw.rect(surf, (120, 100, 80),
-                                 (x + 4, y + h, w - 8, 6))
+                dc = dec["color"]
+                dc_s = (max(0, dc[0]-25), max(0, dc[1]-25), max(0, dc[2]-20))
+                # Door frame
+                pygame.draw.rect(surf, (90, 65, 40), (x - 1, y - 1, w + 2, h + 2))
+                # Door panels
+                pygame.draw.rect(surf, dc, (x, y, w, h))
+                pygame.draw.rect(surf, dc_s, (x + w//2, y, w//2, h))
+                # Panel insets
+                pygame.draw.rect(surf, dc_s, (x + 3, y + 3, w//2 - 5, h//2 - 4), 1)
+                pygame.draw.rect(surf, dc_s, (x + 3, y + h//2 + 1, w//2 - 5, h//2 - 4), 1)
+                # Handle
+                pygame.draw.rect(surf, (200, 180, 80), (x + w - 6, y + h//2 - 1, 3, 3))
+                pygame.draw.rect(surf, (180, 160, 60), (x + w - 6, y + h//2, 3, 1))
+                # Welcome mat with stripes
+                pygame.draw.rect(surf, (140, 110, 80), (x + 3, y + h, w - 6, 6))
+                pygame.draw.rect(surf, (120, 90, 60), (x + 3, y + h + 2, w - 6, 2))
 
             elif dec["type"] == "neon":
                 self._draw_neon(surf, x, y, w, h, dec)
