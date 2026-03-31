@@ -11,12 +11,21 @@ import random
 from enum import IntEnum
 
 from player import Player
-from economy import Economy
+from economy import (
+    Economy, SABOTAGE_DEFS, GUILDS, GUILDS_BY_ID,
+    SEASON_REWARDS, SEASON_NUMBER, SEASON_NAME,
+    execute_sabotage, get_sabotage_income_mult,
+    join_guild, leave_guild, contribute_to_guild,
+    get_guild_income_bonus, get_guild_xp_bonus,
+    get_season_progress, get_season_time_remaining, claim_season_reward,
+)
 from worker import Worker, hire_cost, roll_rarity, RARITIES
 from upgrades import (
     UPGRADE_DEFS, UPGRADES_BY_ID, get_upgrade_level,
     upgrade_cost, can_buy, buy_upgrade,
     get_hire_cost_discount, get_worker_upgrade_discount,
+    get_sabotage_damage_reduction, get_sabotage_block_chance,
+    get_sabotage_income_protection,
 )
 from shop import (
     KITCHEN_ITEMS, DESIGN_ITEMS, BUSINESS_ITEMS, ALL_SHOP_ITEMS,
@@ -127,6 +136,10 @@ class GameScreen:
         self._flash: float = 0.0
         self._particles: list[dict] = []
 
+        # Notification popup
+        self._notif_msg: str = ""
+        self._notif_timer: float = 0.0
+
         # Nav button rects
         self._nav_rects: list[pygame.Rect] = []
         tab_w = SCREEN_W // len(TAB_INFO)
@@ -143,6 +156,8 @@ class GameScreen:
         self.glow_t += dt
         if self._flash > 0:
             self._flash -= dt * 3
+        if self._notif_timer > 0:
+            self._notif_timer -= dt
         alive = []
         for p in self._particles:
             p["x"] += p["vx"] * dt
@@ -238,6 +253,45 @@ class GameScreen:
                         if player.prestige():
                             self._spawn_purchase_fx(mx, my)
                             return "prestige"
+                    elif action_type == "sabotage":
+                        result = execute_sabotage(player, action_id)
+                        if result["ok"]:
+                            self._spawn_purchase_fx(mx, my)
+                            self._notif_msg = result["msg"]
+                            self._notif_timer = 2.5
+                        else:
+                            self._notif_msg = result["msg"]
+                            self._notif_timer = 2.0
+                        return "sabotage"
+                    elif action_type == "guild_join":
+                        if join_guild(player, action_id):
+                            self._spawn_purchase_fx(mx, my)
+                            self._notif_msg = f"Joined {GUILDS_BY_ID[action_id]['name']}!"
+                            self._notif_timer = 2.5
+                        return "guild_join"
+                    elif action_type == "guild_leave":
+                        if leave_guild(player):
+                            self._notif_msg = "Left guild"
+                            self._notif_timer = 2.0
+                        return "guild_leave"
+                    elif action_type == "guild_donate":
+                        amt = min(player.coins * 0.1, 100)  # donate 10% or 100 max
+                        if contribute_to_guild(player, amt):
+                            self._spawn_purchase_fx(mx, my)
+                            self._notif_msg = f"Donated {amt:.0f}c to guild!"
+                            self._notif_timer = 2.0
+                        return "guild_donate"
+                    elif action_type == "season_claim":
+                        r = claim_season_reward(player, action_id)
+                        if r:
+                            self._spawn_purchase_fx(mx, my)
+                            msg = f"Claimed {r['tier']}: +{r['coins']}c"
+                            if r.get("worker"):
+                                msg += f" + {r['worker']} worker!"
+                            self._notif_msg = msg
+                            self._notif_timer = 3.0
+                            return "season_claimed"
+                        return None
 
         # Scroll
         if event.type == pygame.MOUSEWHEEL:
@@ -312,6 +366,21 @@ class GameScreen:
             ps = pygame.Surface((sz, sz), pygame.SRCALPHA)
             pygame.draw.circle(ps, (*p["color"], alpha), (sz // 2, sz // 2), sz // 2)
             self.screen.blit(ps, (int(p["x"]) - sz // 2, int(p["y"]) - sz // 2))
+
+        # Notification popup
+        if self._notif_timer > 0 and self._notif_msg:
+            alpha = min(255, int(self._notif_timer * 200))
+            notif_font = get_font(13, bold=True)
+            ntxt = notif_font.render(self._notif_msg, True, TEXT_WHITE)
+            nw = ntxt.get_width() + 30
+            nh = 32
+            nx = (SCREEN_W - nw) // 2
+            ny = CONTENT_Y + 10
+            ns = pygame.Surface((nw, nh), pygame.SRCALPHA)
+            ns.fill((30, 30, 30, min(220, alpha)))
+            self.screen.blit(ns, (nx, ny))
+            pygame.draw.rect(self.screen, NEON_GREEN, (nx, ny, nw, nh), 1, border_radius=6)
+            self.screen.blit(ntxt, (nx + 15, ny + 6))
 
     # ═══════════════════════════════════════════════════════════
     #  TOP BAR
@@ -1012,16 +1081,24 @@ class GameScreen:
         self.screen.blit(fire_ico, (lx, y))
         title = get_font(16, bold=True).render("SABOTAGE", True, NEON_MAGENTA)
         self.screen.blit(title, (lx + 20, y))
+        attacks_sent = get_font(10).render(
+            f"Attacks sent: {player.sabotage_attacks_sent}", True, TEXT_GRAY)
+        self.screen.blit(attacks_sent, (lx + w - attacks_sent.get_width(), y + 4))
         y += 24
 
         # Attack cards
         for atk in SABOTAGE_ATTACKS:
+            atk_id = atk["id"]
+            defn = SABOTAGE_DEFS.get(atk_id, {})
             card_h = 70
             mx_m, my_m = pygame.mouse.get_pos()
             card_rect = pygame.Rect(lx, y, w, card_h)
             hovered = card_rect.collidepoint(mx_m, my_m)
 
+            on_cd = atk_id in player.sabotage_cooldowns
+            can_afford = player.coins >= atk["cost"]
             atk_color = atk.get("color", NEON_ORANGE)
+
             draw_card(self.screen, lx, y, w, card_h, hover=hovered,
                       accent_color=atk_color, glow_t=self.glow_t)
 
@@ -1035,25 +1112,62 @@ class GameScreen:
             desc = get_font(10).render(atk["desc"], True, TEXT_GRAY)
             self.screen.blit(desc, (lx + 28, y + 24))
 
+            # Cost and cooldown info
             cost_txt = get_font(10).render(f"{atk['cost']:,}c", True, NEON_YELLOW)
-            cd_txt = get_font(10).render(f"CD {atk['cooldown']}s", True, TEXT_DIM)
             self.screen.blit(cost_txt, (lx + 28, y + 40))
-            self.screen.blit(cd_txt, (lx + 28 + cost_txt.get_width() + 10, y + 40))
 
-            draw_locked_overlay(self.screen, card_rect, "COMING SOON", self.glow_t)
+            if on_cd:
+                cd_remaining = player.sabotage_cooldowns[atk_id]
+                cd_min = int(cd_remaining) // 60
+                cd_sec = int(cd_remaining) % 60
+                cd_txt = get_font(10, bold=True).render(
+                    f"CD {cd_min}:{cd_sec:02d}", True, TEXT_RED)
+                self.screen.blit(cd_txt, (lx + 28 + cost_txt.get_width() + 10, y + 40))
+                # Cooldown progress bar
+                cd_pct = 1.0 - (cd_remaining / atk["cooldown"])
+                draw_progress_bar(self.screen, lx + 28, y + 56, w - 44, 6,
+                                  cd_pct, color=atk_color, glow_t=self.glow_t)
+            else:
+                cd_txt = get_font(10).render(f"CD {atk['cooldown']}s", True, TEXT_DIM)
+                self.screen.blit(cd_txt, (lx + 28 + cost_txt.get_width() + 10, y + 40))
+
+            # Attack button
+            btn_w, btn_h = 60, 22
+            btn_rect = pygame.Rect(lx + w - btn_w - 6, y + 40, btn_w, btn_h)
+            if on_cd:
+                pygame.draw.rect(self.screen, BTN_DISABLED, btn_rect, border_radius=4)
+                btn_label = get_font(9).render("WAIT", True, BTN_DIS_TXT)
+            elif not can_afford:
+                pygame.draw.rect(self.screen, BTN_DISABLED, btn_rect, border_radius=4)
+                btn_label = get_font(9).render("NO $", True, BTN_DIS_TXT)
+            else:
+                btn_hover = btn_rect.collidepoint(mx_m, my_m)
+                bc = BTN_BUY_H if btn_hover else BTN_BUY
+                pygame.draw.rect(self.screen, bc, btn_rect, border_radius=4)
+                pygame.draw.rect(self.screen, atk_color, btn_rect, 1, border_radius=4)
+                btn_label = get_font(9, bold=True).render("ATTACK", True, TEXT_WHITE)
+                self._buttons.append((btn_rect, "sabotage", atk_id))
+            self.screen.blit(btn_label, btn_label.get_rect(center=btn_rect.center))
+
             y += card_h + 6
 
-        # Info box
+        # Defense stats
         y += 4
-        info_rect = pygame.Rect(lx, y, w, 46)
+        info_rect = pygame.Rect(lx, y, w, 56)
         pygame.draw.rect(self.screen, BG_CARD, info_rect, border_radius=8)
         pygame.draw.rect(self.screen, NEON_MAGENTA, info_rect, 1, border_radius=8)
         draw_pixel_corners(self.screen, info_rect, NEON_MAGENTA, 2)
-        info_t1 = get_font(11, bold=True).render("PvP Sabotage System", True, NEON_MAGENTA)
-        self.screen.blit(info_t1, (lx + 8, y + 6))
-        info_t2 = get_font(10).render(
-            "Attack rivals, steal customers!", True, TEXT_GRAY)
-        self.screen.blit(info_t2, (lx + 8, y + 22))
+        info_t1 = get_font(11, bold=True).render("Defense Stats", True, NEON_MAGENTA)
+        self.screen.blit(info_t1, (lx + 8, y + 4))
+        dmg_red = (1.0 - get_sabotage_damage_reduction(player)) * 100
+        blk_ch = get_sabotage_block_chance(player) * 100
+        inc_prot = (1.0 - get_sabotage_income_protection(player)) * 100
+        def_txt = get_font(10).render(
+            f"DMG Reduce: {dmg_red:.0f}%  |  Block: {blk_ch:.0f}%  |  Income Prot: {inc_prot:.0f}%",
+            True, TEXT_GRAY)
+        self.screen.blit(def_txt, (lx + 8, y + 22))
+        hint = get_font(9).render("Upgrade Defense in Upgrades tab!", True, TEXT_DIM)
+        self.screen.blit(hint, (lx + 8, y + 38))
 
         self.screen.set_clip(prev_clip)
 
@@ -1066,10 +1180,11 @@ class GameScreen:
 
         prev_clip = self.screen.get_clip()
         self.screen.set_clip(area)
+        scroll = self._scroll[Tab.GUILD]
         margin = 10
         lx = PANEL_X + margin
         w = PANEL_W - margin * 2
-        y = CONTENT_Y + 8
+        y = CONTENT_Y + 8 - scroll
 
         # Header
         crown_ico = icons.get_scaled("crown", 16)
@@ -1078,51 +1193,124 @@ class GameScreen:
         self.screen.blit(title, (lx + 20, y))
         y += 24
 
-        # Guild creation / join section
-        join_h = 76
-        join_rect = pygame.Rect(lx, y, w, join_h)
-        pygame.draw.rect(self.screen, BG_CARD, join_rect, border_radius=8)
-        pygame.draw.rect(self.screen, NEON_YELLOW, join_rect, 2, border_radius=8)
-        draw_pixel_corners(self.screen, join_rect, NEON_YELLOW, 3)
+        mx_m, my_m = pygame.mouse.get_pos()
 
-        glow_a = int(10 + 8 * math.sin(self.glow_t * 1.5))
-        gs = pygame.Surface((w, join_h), pygame.SRCALPHA)
-        gs.fill((*NEON_YELLOW[:3], max(0, glow_a)))
-        self.screen.blit(gs, (lx, y))
+        if player.guild_id:
+            # ── CURRENT GUILD INFO ──
+            guild = GUILDS_BY_ID.get(player.guild_id)
+            if guild:
+                info_h = 90
+                info_rect = pygame.Rect(lx, y, w, info_h)
+                pygame.draw.rect(self.screen, BG_CARD, info_rect, border_radius=8)
+                pygame.draw.rect(self.screen, guild["color"], info_rect, 2, border_radius=8)
+                draw_pixel_corners(self.screen, info_rect, guild["color"], 3)
 
-        self.screen.blit(icons.get_scaled("building", 16), (lx + 10, y + 10))
-        create_title = get_font(14, bold=True).render("Create or Join Guild", True, TEXT_WHITE)
-        self.screen.blit(create_title, (lx + 32, y + 8))
-        create_desc = get_font(10).render(
-            "Team up for bonus income & recipes!", True, TEXT_GRAY)
-        self.screen.blit(create_desc, (lx + 32, y + 28))
+                glow_a = int(10 + 8 * math.sin(self.glow_t * 1.5))
+                gs = pygame.Surface((w, info_h), pygame.SRCALPHA)
+                gs.fill((*guild["color"][:3], max(0, glow_a)))
+                self.screen.blit(gs, (lx, y))
 
-        draw_locked_overlay(self.screen, join_rect, "COMING SOON", self.glow_t)
-        y += join_h + 12
+                self.screen.blit(icons.get_scaled("crown", 16), (lx + 10, y + 8))
+                gname = get_font(14, bold=True).render(guild["name"], True, TEXT_WHITE)
+                self.screen.blit(gname, (lx + 32, y + 6))
+                motto = get_font(10).render(f'"{guild["motto"]}"', True, TEXT_GRAY)
+                self.screen.blit(motto, (lx + 32, y + 24))
 
-        # Guild perks
+                role_txt = get_font(10).render(
+                    f"Role: {player.guild_role.title()}  |  "
+                    f"Contributed: {player.guild_contribution:.0f}c", True, TEXT_GRAY)
+                self.screen.blit(role_txt, (lx + 10, y + 42))
+
+                bonus_txt = get_font(10).render(
+                    f"Income +{guild['bonus_income']*100:.0f}%  |  "
+                    f"Season XP +{guild['bonus_xp']*100:.0f}%", True, NEON_GREEN)
+                self.screen.blit(bonus_txt, (lx + 10, y + 58))
+
+                # Leave button
+                leave_btn = pygame.Rect(lx + w - 70, y + 62, 60, 20)
+                leave_hover = leave_btn.collidepoint(mx_m, my_m)
+                lc = TEXT_RED if leave_hover else (120, 60, 60)
+                pygame.draw.rect(self.screen, lc, leave_btn, border_radius=4)
+                lt = get_font(9).render("LEAVE", True, TEXT_WHITE)
+                self.screen.blit(lt, lt.get_rect(center=leave_btn.center))
+                self._buttons.append((leave_btn, "guild_leave", ""))
+
+                y += info_h + 8
+
+                # Donate button
+                donate_btn = pygame.Rect(lx, y, w, 32)
+                dh = donate_btn.collidepoint(mx_m, my_m)
+                dc = BTN_BUY_H if dh else BTN_BUY
+                pygame.draw.rect(self.screen, dc, donate_btn, border_radius=6)
+                pygame.draw.rect(self.screen, NEON_YELLOW, donate_btn, 1, border_radius=6)
+                donate_amt = min(player.coins * 0.1, 100)
+                dt_txt = get_font(11, bold=True).render(
+                    f"DONATE {donate_amt:.0f}c TO GUILD", True, TEXT_WHITE)
+                self.screen.blit(dt_txt, dt_txt.get_rect(center=donate_btn.center))
+                self._buttons.append((donate_btn, "guild_donate", ""))
+                y += 40
+
+        else:
+            # ── JOIN A GUILD ──
+            join_title = get_font(13, bold=True).render("JOIN A GUILD", True, NEON_CYAN)
+            self.screen.blit(join_title, (lx, y))
+            y += 18
+
+            for guild in GUILDS:
+                card_h = 64
+                card_rect = pygame.Rect(lx, y, w, card_h)
+                hovered = card_rect.collidepoint(mx_m, my_m)
+                gc = guild["color"]
+                draw_card(self.screen, lx, y, w, card_h, hover=hovered,
+                          accent_color=gc, glow_t=self.glow_t)
+
+                self.screen.blit(icons.get_scaled("crown", 14), (lx + 8, y + 6))
+                gn = get_font(12, bold=True).render(guild["name"], True, TEXT_WHITE)
+                self.screen.blit(gn, (lx + 28, y + 4))
+                gm = get_font(10).render(f'"{guild["motto"]}"', True, TEXT_GRAY)
+                self.screen.blit(gm, (lx + 28, y + 20))
+                bonus = get_font(10).render(
+                    f"Income +{guild['bonus_income']*100:.0f}%  |  "
+                    f"Season XP +{guild['bonus_xp']*100:.0f}%", True, NEON_GREEN)
+                self.screen.blit(bonus, (lx + 28, y + 36))
+
+                # Join button
+                jbtn = pygame.Rect(lx + w - 56, y + 36, 48, 20)
+                jh = jbtn.collidepoint(mx_m, my_m)
+                jc = BTN_BUY_H if jh else BTN_BUY
+                pygame.draw.rect(self.screen, jc, jbtn, border_radius=4)
+                pygame.draw.rect(self.screen, gc, jbtn, 1, border_radius=4)
+                jt = get_font(9, bold=True).render("JOIN", True, TEXT_WHITE)
+                self.screen.blit(jt, jt.get_rect(center=jbtn.center))
+                self._buttons.append((jbtn, "guild_join", guild["id"]))
+                y += card_h + 4
+
+        # Guild perks section
+        y += 8
         perks_title = get_font(13, bold=True).render("GUILD PERKS", True, NEON_CYAN)
         self.screen.blit(perks_title, (lx, y))
         y += 20
 
-        # Perk cards (single column for narrow panel)
         for perk in GUILD_PERKS:
-            card_h = 52
+            card_h = 44
             card_rect = pygame.Rect(lx, y, w, card_h)
+            has_guild = bool(player.guild_id)
             draw_card(self.screen, lx, y, w, card_h,
                       accent_color=NEON_CYAN, glow_t=self.glow_t)
 
-            self.screen.blit(icons.get_scaled(perk["icon"], 14), (lx + 8, y + 8))
+            self.screen.blit(icons.get_scaled(perk["icon"], 14), (lx + 8, y + 6))
             self.screen.blit(get_font(12, bold=True).render(perk["name"], True, TEXT_WHITE),
-                             (lx + 28, y + 6))
-            draw_badge(self.screen, lx + w - 46, y + 6,
+                             (lx + 28, y + 4))
+            draw_badge(self.screen, lx + w - 46, y + 4,
                        f"Lv{perk['level']}", (60, 100, 140), 9)
             self.screen.blit(get_font(10).render(perk["desc"], True, TEXT_GRAY),
-                             (lx + 28, y + 24))
-
-            draw_locked_overlay(self.screen, card_rect, "LOCKED", self.glow_t)
+                             (lx + 28, y + 22))
+            if not has_guild:
+                draw_locked_overlay(self.screen, card_rect, "JOIN GUILD", self.glow_t)
             y += card_h + 4
 
+        y += 20
+        self._max_scroll[Tab.GUILD] = max(0, y + scroll - CONTENT_Y - CONTENT_H + 20)
         self.screen.set_clip(prev_clip)
 
     # ═══════════════════════════════════════════════════════════
@@ -1139,12 +1327,15 @@ class GameScreen:
         lx = PANEL_X + margin
         w = PANEL_W - margin * 2
         y = CONTENT_Y + 8 - scroll
+        mx_m, my_m = pygame.mouse.get_pos()
 
         # Header
         star_ico = icons.get_scaled("star", 16)
         self.screen.blit(star_ico, (lx, y))
         title = get_font(16, bold=True).render("SEASON", True, NEON_YELLOW)
         self.screen.blit(title, (lx + 20, y))
+        pts_lbl = get_font(11).render(f"{player.season_points:,} pts", True, NEON_GREEN)
+        self.screen.blit(pts_lbl, (lx + w - pts_lbl.get_width(), y + 4))
         y += 24
 
         # Season Banner
@@ -1155,16 +1346,17 @@ class GameScreen:
         draw_pixel_corners(self.screen, season_rect, NEON_YELLOW, 3)
 
         self.screen.blit(icons.get_scaled("trophy", 16), (lx + 10, y + 8))
-        season_title = get_font(13, bold=True).render("Season 1: Grand Opening", True, TEXT_WHITE)
+        s_title = f"Season {SEASON_NUMBER}: {SEASON_NAME}"
+        season_title = get_font(13, bold=True).render(s_title, True, TEXT_WHITE)
         self.screen.blit(season_title, (lx + 30, y + 6))
-        timer_txt = get_font(11).render("Ends in: 27d 14h", True, NEON_YELLOW)
+        days, hours = get_season_time_remaining()
+        timer_txt = get_font(11).render(f"Ends in: {days}d {hours}h", True, NEON_YELLOW)
         self.screen.blit(timer_txt, (lx + 30, y + 24))
+        progress = get_season_progress(player)
         draw_progress_bar(self.screen, lx + 30, y + 42, w - 50, 10,
-                          0.35, color=NEON_YELLOW, show_shimmer=True, glow_t=self.glow_t)
-        pct_lbl = get_font(10).render("35%", True, TEXT_GRAY)
+                          progress, color=NEON_YELLOW, show_shimmer=True, glow_t=self.glow_t)
+        pct_lbl = get_font(10).render(f"{int(progress * 100)}%", True, TEXT_GRAY)
         self.screen.blit(pct_lbl, (lx + 30, y + 54))
-
-        draw_locked_overlay(self.screen, season_rect, "COMING SOON", self.glow_t)
         y += season_h + 12
 
         # Active Events
@@ -1172,7 +1364,7 @@ class GameScreen:
         self.screen.blit(events_title, (lx, y))
         y += 18
 
-        if economy.last_event_name:
+        if economy.last_event_name and economy.event_display_timer > 0:
             ev_h = 44
             draw_card(self.screen, lx, y, w, ev_h,
                       accent_color=economy.last_event_color, glow_t=self.glow_t)
@@ -1180,13 +1372,26 @@ class GameScreen:
             ev_name = get_font(12, bold=True).render(economy.last_event_name, True,
                                                       economy.last_event_color)
             self.screen.blit(ev_name, (lx + 26, y + 6))
-            ev_desc = get_font(10).render("Active economy event!", True, TEXT_GRAY)
+            timer_s = f"{economy.event_display_timer:.1f}s remaining"
+            ev_desc = get_font(10).render(timer_s, True, TEXT_GRAY)
             self.screen.blit(ev_desc, (lx + 26, y + 24))
             y += ev_h + 6
         else:
-            no_ev = get_font(11).render("No active events.", True, TEXT_DIM)
+            no_ev = get_font(11).render("No active events — keep playing!", True, TEXT_DIM)
             self.screen.blit(no_ev, (lx, y))
             y += 18
+
+        # Incoming sabotage debuff
+        if player.incoming_sabotage and player.incoming_sabotage["timer"] > 0:
+            sab_h = 36
+            draw_card(self.screen, lx, y, w, sab_h,
+                      accent_color=TEXT_RED, glow_t=self.glow_t)
+            self.screen.blit(icons.get_scaled("fire", 14), (lx + 8, y + 4))
+            sab_txt = get_font(11, bold=True).render(
+                f"SABOTAGED! {player.incoming_sabotage['timer']:.0f}s",
+                True, TEXT_RED)
+            self.screen.blit(sab_txt, (lx + 26, y + 6))
+            y += sab_h + 6
 
         # Season Rewards
         y += 6
@@ -1194,19 +1399,8 @@ class GameScreen:
         self.screen.blit(rewards_title, (lx, y))
         y += 18
 
-        rewards = [
-            {"tier": "Bronze", "pts": 100, "reward": "50 coins",
-             "color": (205, 127, 50), "icon": "medal_bronze"},
-            {"tier": "Silver", "pts": 500, "reward": "Uncommon worker",
-             "color": (192, 192, 192), "icon": "medal_silver"},
-            {"tier": "Gold",   "pts": 2000, "reward": "Rare worker + 500c",
-             "color": (255, 215, 0),  "icon": "medal_gold"},
-            {"tier": "Master", "pts": 10000, "reward": "Epic worker + decor",
-             "color": (180, 80, 240), "icon": "star"},
-        ]
-
-        for r in rewards:
-            rh = 40
+        for r in SEASON_REWARDS:
+            rh = 48
             r_rect = draw_card(self.screen, lx, y, w, rh,
                                accent_color=r["color"], glow_t=self.glow_t)
             self.screen.blit(icons.get_scaled(r["icon"], 14), (lx + 8, y + 6))
@@ -1214,10 +1408,38 @@ class GameScreen:
             self.screen.blit(tier_txt, (lx + 26, y + 4))
             pts_txt = get_font(10).render(f"{r['pts']:,}pts", True, TEXT_GRAY)
             self.screen.blit(pts_txt, (lx + 26 + tier_txt.get_width() + 6, y + 6))
-            reward_txt = get_font(10).render(r["reward"], True, TEXT_WHITE)
+
+            # Reward description
+            reward_desc = f"+{r['reward_coins']}c"
+            if r["reward_worker"]:
+                reward_desc += f" + {r['reward_worker'].title()} worker"
+            reward_txt = get_font(10).render(reward_desc, True, TEXT_WHITE)
             self.screen.blit(reward_txt, (lx + 26, y + 22))
 
-            draw_locked_overlay(self.screen, r_rect, "LOCKED", self.glow_t)
+            claimed = r["tier"] in player.season_rewards_claimed
+            can_claim = player.season_points >= r["pts"] and not claimed
+
+            if claimed:
+                done_txt = get_font(10, bold=True).render("CLAIMED", True, NEON_GREEN)
+                self.screen.blit(done_txt, (lx + w - 60, y + 6))
+            elif can_claim:
+                claim_btn = pygame.Rect(lx + w - 62, y + 22, 54, 20)
+                ch = claim_btn.collidepoint(mx_m, my_m)
+                cc = BTN_BUY_H if ch else BTN_BUY
+                pygame.draw.rect(self.screen, cc, claim_btn, border_radius=4)
+                pygame.draw.rect(self.screen, r["color"], claim_btn, 1, border_radius=4)
+                ct = get_font(9, bold=True).render("CLAIM", True, TEXT_WHITE)
+                self.screen.blit(ct, ct.get_rect(center=claim_btn.center))
+                self._buttons.append((claim_btn, "season_claim", r["tier"]))
+            else:
+                # Show progress toward this tier
+                tier_pct = min(1.0, player.season_points / r["pts"])
+                draw_progress_bar(self.screen, lx + 26, y + 36, w - 100, 6,
+                                  tier_pct, color=r["color"], glow_t=self.glow_t)
+                need = get_font(9).render(
+                    f"{player.season_points}/{r['pts']}", True, TEXT_DIM)
+                self.screen.blit(need, (lx + w - 60, y + 32))
+
             y += rh + 4
 
         # Mini leaderboard hint
@@ -1230,7 +1452,7 @@ class GameScreen:
         self.screen.blit(lb_hint, lb_hint.get_rect(center=lb_rect.center))
 
         y += 52
-        self._max_scroll[Tab.SEASON] = max(0, y - CONTENT_Y - CONTENT_H + 20)
+        self._max_scroll[Tab.SEASON] = max(0, y + scroll - CONTENT_Y - CONTENT_H + 20)
         self.screen.set_clip(prev_clip)
 
     # ═══════════════════════════════════════════════════════════

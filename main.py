@@ -25,6 +25,7 @@ from save_system import SaveSystem
 from menu import StartMenu, MenuState
 from shop import get_total_shop_multiplier, get_seat_count
 from leaderboard import LeaderboardOverlay, submit_score, get_restaurant_rating
+from economy import get_guild_income_bonus
 from loading import LoadingScreen
 from game_screen import GameScreen, SCREEN_W, SCREEN_H
 
@@ -126,7 +127,7 @@ async def run_game(screen, clock, mode, reg_data, save_sys):
                 submit_score(player, restaurant)
                 leaderboard.toggle(player.player_name)
                 continue
-            elif action in ("hired", "prestige"):
+            elif action in ("hired", "prestige", "season_claimed"):
                 restaurant.sync_workers(player.workers)
 
         # ── Apply upgrade effects to economy settings ────────
@@ -136,11 +137,12 @@ async def run_game(screen, clock, mode, reg_data, save_sys):
         eff = get_efficiency_multiplier(player)
         inc = get_income_multiplier(player)
         shop_mult = get_total_shop_multiplier(player)
+        guild_mult = get_guild_income_bonus(player)
         seats = get_seat_count(player)
 
         # Temporarily boost worker output
         original_multiplier = player.prestige_multiplier
-        player.prestige_multiplier = original_multiplier * spd * eff * inc * shop_mult
+        player.prestige_multiplier = original_multiplier * spd * eff * inc * shop_mult * guild_mult
 
         # ── Economy tick ─────────────────────────────────────
         economy.update(player, dt, seats=seats)
@@ -164,7 +166,7 @@ async def run_game(screen, clock, mode, reg_data, save_sys):
         game_ui.update(dt)
         leaderboard.update(dt)
 
-        effective_ips = player.get_income_per_second() * spd * eff * inc * shop_mult
+        effective_ips = player.get_income_per_second() * spd * eff * inc * shop_mult * guild_mult
 
         # ── Render ───────────────────────────────────────────
         game_ui.draw(player, economy, effective_ips, restaurant)

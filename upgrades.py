@@ -65,6 +65,31 @@ UPGRADE_DEFS: list[dict] = [
         "desc": "-5% worker upgrade cost per level",
         "max_level": 20,
     },
+    # ── Defense ───────────────────────────────────────────────
+    {
+        "id": "def_firewall",
+        "name": "Firewall",
+        "category": "Defense",
+        "base_cost": 200,
+        "desc": "-10% sabotage damage per level",
+        "max_level": 10,
+    },
+    {
+        "id": "def_security",
+        "name": "Security System",
+        "category": "Defense",
+        "base_cost": 350,
+        "desc": "+10% chance to block attacks/lvl",
+        "max_level": 10,
+    },
+    {
+        "id": "def_insurance",
+        "name": "Insurance",
+        "category": "Defense",
+        "base_cost": 500,
+        "desc": "-15% income loss from sabotage/lvl",
+        "max_level": 8,
+    },
 ]
 
 # Build a quick lookup
@@ -125,3 +150,19 @@ def get_hire_cost_discount(player: "Player") -> float:
 def get_worker_upgrade_discount(player: "Player") -> float:
     lvl = get_upgrade_level(player, "auto_upgrade")
     return 1.0 - lvl * 0.05
+
+# ── Defense upgrade effects ──────────────────────────────────
+def get_sabotage_damage_reduction(player: "Player") -> float:
+    """Returns multiplier on incoming sabotage damage (lower = better)."""
+    lvl = get_upgrade_level(player, "def_firewall")
+    return max(0.1, 1.0 - lvl * 0.10)
+
+def get_sabotage_block_chance(player: "Player") -> float:
+    """Probability of completely blocking incoming sabotage."""
+    lvl = get_upgrade_level(player, "def_security")
+    return min(0.90, lvl * 0.10)
+
+def get_sabotage_income_protection(player: "Player") -> float:
+    """Returns multiplier on income loss from active sabotage (lower = better)."""
+    lvl = get_upgrade_level(player, "def_insurance")
+    return max(0.1, 1.0 - lvl * 0.15)

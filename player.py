@@ -22,6 +22,21 @@ class Player:
         self.active_bonus_multiplier: float = 1.0
         self.active_bonus_timer: float = 0.0     # seconds remaining
 
+        # ── Sabotage state ────────────────────────────────────
+        self.sabotage_cooldowns: dict = {}        # {attack_id: seconds_remaining}
+        self.sabotage_attacks_sent: int = 0
+        self.sabotage_defense_level: int = 0
+        self.incoming_sabotage: dict | None = None # active debuff {"id", "timer", "effect"}
+
+        # ── Guild state ───────────────────────────────────────
+        self.guild_id: str = ""                    # guild name (empty = no guild)
+        self.guild_role: str = "member"            # member / officer / leader
+        self.guild_contribution: float = 0.0       # coins contributed to guild
+
+        # ── Season state ──────────────────────────────────────
+        self.season_points: int = 0
+        self.season_rewards_claimed: list = []     # list of tier strings already claimed
+
     # ── Income ────────────────────────────────────────────────
     def get_income_per_second(self) -> float:
         """Sum income from all workers, apply prestige + active bonuses."""
@@ -87,6 +102,14 @@ class Player:
             "upgrades_purchased": self.upgrades_purchased,
             "active_bonus_multiplier": self.active_bonus_multiplier,
             "active_bonus_timer": self.active_bonus_timer,
+            "sabotage_cooldowns": self.sabotage_cooldowns,
+            "sabotage_attacks_sent": self.sabotage_attacks_sent,
+            "sabotage_defense_level": self.sabotage_defense_level,
+            "guild_id": self.guild_id,
+            "guild_role": self.guild_role,
+            "guild_contribution": self.guild_contribution,
+            "season_points": self.season_points,
+            "season_rewards_claimed": self.season_rewards_claimed,
         }
 
     def from_dict(self, data: dict, worker_factory):
@@ -100,4 +123,12 @@ class Player:
         self.upgrades_purchased = data.get("upgrades_purchased", {})
         self.active_bonus_multiplier = data.get("active_bonus_multiplier", 1.0)
         self.active_bonus_timer = data.get("active_bonus_timer", 0.0)
+        self.sabotage_cooldowns = data.get("sabotage_cooldowns", {})
+        self.sabotage_attacks_sent = data.get("sabotage_attacks_sent", 0)
+        self.sabotage_defense_level = data.get("sabotage_defense_level", 0)
+        self.guild_id = data.get("guild_id", "")
+        self.guild_role = data.get("guild_role", "member")
+        self.guild_contribution = data.get("guild_contribution", 0.0)
+        self.season_points = data.get("season_points", 0)
+        self.season_rewards_claimed = data.get("season_rewards_claimed", [])
         self.workers = [worker_factory(w) for w in data.get("workers", [])]
