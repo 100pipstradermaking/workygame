@@ -1,42 +1,51 @@
 """
 theme.py — Shared color palette and font factory for WORKY.
-All UI modules should import colors from here for consistency.
+Neon pixel-art theme based on Figma design:
+light warm cream backgrounds with vibrant neon accent colors.
 """
 
 import pygame
 
-# ── Background tones ──────────────────────────────────────────
-BG_DARK   = (18, 16, 24)       # deepest (menu background)
-BG        = (22, 20, 32)       # standard dark bg (shop, ui panels)
-BG_PANEL  = (30, 28, 42)       # raised panel surfaces
-BG_CARD   = (42, 38, 58)       # card / row background
-BG_CARD_H = (55, 48, 72)       # card hover
+# ── Background tones (warm cream palette from Figma) ─────────
+BG_DARK   = (250, 248, 245)    # --game-bg: #faf8f5
+BG        = (245, 241, 235)    # --game-surface: #f5f1eb
+BG_PANEL  = (255, 255, 255)    # --game-surface-light / card bg
+BG_CARD   = (255, 255, 255)    # white cards
+BG_CARD_H = (248, 245, 240)    # card hover (slightly tinted)
 
 # ── Text colors ───────────────────────────────────────────────
-TEXT_WHITE = (245, 245, 250)
-TEXT_GOLD  = (255, 215, 70)
-TEXT_GRAY  = (150, 148, 165)
-TEXT_DIM   = (120, 120, 135)
-TEXT_RED   = (255, 80, 80)
-TEXT_GREEN = (80, 230, 120)
-TEXT_CYAN  = (80, 220, 255)
-TEXT_PINK  = (255, 130, 200)
+TEXT_WHITE = (45, 52, 54)      # --neutral-dark: #2d3436 (dark on light bg)
+TEXT_GOLD  = (255, 215, 70)    # keep gold for coins/highlights
+TEXT_GRAY  = (99, 110, 114)    # --neutral-medium: #636e72
+TEXT_DIM   = (178, 190, 195)   # --neutral-light/--text-muted: #b2bec3
+TEXT_RED   = (255, 118, 117)   # --danger: #ff7675
+TEXT_GREEN = (85, 239, 196)    # --success: #55efc4
+TEXT_CYAN  = (0, 206, 209)     # neon-cyan accent
+TEXT_PINK  = (236, 72, 153)    # neon-magenta / --primary-accent nearby
 
-# ── Accent / brand ────────────────────────────────────────────
-ACCENT       = (255, 180, 50)
-ACCENT_GLOW  = (255, 200, 80)
-BORDER       = (75, 70, 100)
-BORDER_LIGHT = (100, 100, 120)
+# ── Neon accent colors (from Figma design) ────────────────────
+NEON_CYAN    = (0, 206, 209)
+NEON_YELLOW  = (253, 216, 53)
+NEON_MAGENTA = (236, 72, 153)
+NEON_GREEN   = (34, 197, 94)
+NEON_BLUE    = (59, 130, 246)
+NEON_ORANGE  = (249, 115, 22)
+
+# ── Accent / brand (from Figma) ──────────────────────────────
+ACCENT       = (255, 107, 107)   # --primary-accent: #ff6b6b
+ACCENT_GLOW  = (255, 140, 140)
+BORDER       = (178, 190, 195)   # --neutral-light: #b2bec3
+BORDER_LIGHT = (210, 215, 220)
 
 # ── Buttons ───────────────────────────────────────────────────
-BTN_PRIMARY   = (200, 120, 40)
-BTN_PRIMARY_H = (240, 150, 50)
-BTN_SECONDARY = (60, 100, 160)
-BTN_SECONDARY_H = (80, 130, 200)
-BTN_BUY       = (50, 170, 80)
-BTN_BUY_H     = (70, 210, 100)
-BTN_DISABLED  = (50, 48, 55)
-BTN_DIS_TXT   = (90, 88, 100)
+BTN_PRIMARY   = (78, 205, 196)   # --secondary-accent: #4ecdc4
+BTN_PRIMARY_H = (100, 220, 210)
+BTN_SECONDARY = (59, 130, 246)   # neon-blue
+BTN_SECONDARY_H = (96, 165, 250)
+BTN_BUY       = (34, 197, 94)    # neon-green
+BTN_BUY_H     = (74, 222, 128)
+BTN_DISABLED  = (229, 231, 235)  # light gray for disabled
+BTN_DIS_TXT   = (178, 190, 195)
 
 # ── Medal colors ──────────────────────────────────────────────
 GOLD   = (255, 215, 0)
@@ -44,18 +53,18 @@ SILVER = (192, 192, 192)
 BRONZE = (205, 127, 50)
 
 # ── Star (voting) ────────────────────────────────────────────
-STAR_ON    = (255, 210, 50)
-STAR_OFF   = (60, 58, 75)
+STAR_ON    = (253, 216, 53)   # neon-yellow
+STAR_OFF   = (210, 215, 220)
 STAR_HOVER = (255, 240, 130)
 
-# ── Rarity (matches worker.py RARITIES) ─────────────────────
-RARITY_COMMON    = (180, 180, 180)
-RARITY_UNCOMMON  = (100, 200, 100)
-RARITY_RARE      = (80, 140, 240)
-RARITY_EPIC      = (180, 80, 240)
-RARITY_LEGENDARY = (255, 200, 50)
+# ── Rarity colors (from Figma: R0 mapping) ──────────────────
+RARITY_COMMON    = (156, 163, 175)   # text-gray-400
+RARITY_UNCOMMON  = (34, 197, 94)     # neon-green
+RARITY_RARE      = (59, 130, 246)    # neon-blue
+RARITY_EPIC      = (236, 72, 153)    # neon-magenta
+RARITY_LEGENDARY = (253, 216, 53)    # neon-yellow
 
-# ── Font size hierarchy ──────────────────────────────────────
+# ── Font ──────────────────────────────────────────────────────
 FONT_NAME = "Consolas"
 
 def make_fonts():

@@ -35,7 +35,7 @@ TAB_COLORS = {
     "Design":   ((60, 140, 200), (80, 170, 240)),
     "Business": ((120, 60, 180), (160, 90, 220)),
 }
-TAB_INACTIVE = (40, 38, 52)
+TAB_INACTIVE = (240, 238, 233)
 
 # ── Shop item definitions ────────────────────────────────────
 KITCHEN_ITEMS = [
@@ -388,7 +388,7 @@ class ShopUI:
         for i in range(0, self.panel_h, 4):
             alpha = int(5 + 3 * math.sin(i * 0.02 + self.glow_t))
             gs = pygame.Surface((self.panel_w, 4), pygame.SRCALPHA)
-            gs.fill((100, 80, 160, max(0, min(255, alpha))))
+            gs.fill((200, 190, 240, max(0, min(255, alpha))))
             surf.blit(gs, (self.panel_x, i))
 
         # Left border with accent glow
@@ -476,7 +476,7 @@ class ShopUI:
                 color = TAB_INACTIVE
                 mx, my = pygame.mouse.get_pos()
                 if rect.collidepoint(mx, my):
-                    color = (55, 52, 68)
+                    color = (200, 198, 210)
             pygame.draw.rect(surf, color, rect)
             # Tab icon + label
             ico = icons.get_scaled(icons.TAB_ICONS[name], 12)
@@ -612,7 +612,7 @@ class ShopUI:
             hdr_bg = (25, 42, 35)
             hdr_border = TEXT_GREEN
         else:
-            hdr_bg = (30, 30, 45)
+            hdr_bg = (245, 241, 235)
             hdr_border = TEXT_CYAN
         pygame.draw.rect(surf, hdr_bg, header_rect, border_radius=6)
         pygame.draw.rect(surf, hdr_border, header_rect, 2, border_radius=6)
@@ -642,7 +642,7 @@ class ShopUI:
         bar_y_pos = y + 30
         bar_w = w - 16
         bar_h = 12
-        pygame.draw.rect(surf, (20, 20, 30), (bar_x, bar_y_pos, bar_w, bar_h),
+        pygame.draw.rect(surf, (230, 230, 235), (bar_x, bar_y_pos, bar_w, bar_h),
                          border_radius=6)
         fill_w = int(bar_w * attract / 100)
         if fill_w > 0:
@@ -747,7 +747,7 @@ class ShopUI:
             pb_y = y + 54
             pb_w = w - 130
             pb_h = 8
-            pygame.draw.rect(surf, (25, 25, 35), (pb_x, pb_y, pb_w, pb_h),
+            pygame.draw.rect(surf, (230, 230, 235), (pb_x, pb_y, pb_w, pb_h),
                              border_radius=4)
             if lvl > 0:
                 fill = int(pb_w * lvl / item["max_level"])
@@ -756,7 +756,7 @@ class ShopUI:
             # Pips for each level
             for pip_i in range(item["max_level"]):
                 pip_x = pb_x + int(pb_w * (pip_i + 1) / item["max_level"])
-                pip_c = (60, 60, 70) if pip_i >= lvl else (*ic[:3],)
+                pip_c = (200, 200, 210) if pip_i >= lvl else (*ic[:3],)
                 pygame.draw.rect(surf, pip_c, (pip_x - 1, pb_y, 1, pb_h))
 
             # Buy button

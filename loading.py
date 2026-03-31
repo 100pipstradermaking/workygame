@@ -332,7 +332,7 @@ class LoadingScreen:
         return self._clicked
 
     def draw(self):
-        self.screen.fill((12, 10, 18))
+        self.screen.fill((250, 248, 245))
 
         # Background particles
         self._draw_bg_particles()
@@ -366,13 +366,13 @@ class LoadingScreen:
 
         # === Ground line ===
         ground_y = self.sh - 50
-        pygame.draw.line(self.screen, (50, 45, 65),
+        pygame.draw.line(self.screen, (200, 195, 185),
                          (0, ground_y), (self.sw, ground_y), 2)
 
         # Small tiles on ground
         for gx in range(0, self.sw, 20):
-            shade = 25 + (gx // 20 % 2) * 5
-            pygame.draw.rect(self.screen, (shade, shade - 2, shade + 8),
+            shade = 230 + (gx // 20 % 2) * 8
+            pygame.draw.rect(self.screen, (shade, shade - 3, shade - 10),
                              (gx, ground_y, 20, self.sh - ground_y))
 
         # === Progress bar ===
@@ -388,7 +388,7 @@ class LoadingScreen:
             self._draw_click_prompt(cx, self.sh - 35)
 
         # === Version badge ===
-        ver = self.font_sm.render("v0.2.0", True, (50, 50, 60))
+        ver = self.font_sm.render("v0.2.0", True, (150, 150, 160))
         self.screen.blit(ver, (8, self.sh - 18))
 
     def _draw_pixel_title(self, cx: int, top_y: int):
@@ -563,10 +563,10 @@ class LoadingScreen:
         by = y
 
         # Background
-        pygame.draw.rect(self.screen, (35, 32, 48), (bx, by, bar_w, bar_h),
+        pygame.draw.rect(self.screen, (230, 230, 235), (bx, by, bar_w, bar_h),
                          border_radius=6)
         # Border
-        pygame.draw.rect(self.screen, (75, 70, 100), (bx, by, bar_w, bar_h),
+        pygame.draw.rect(self.screen, (200, 195, 210), (bx, by, bar_w, bar_h),
                          1, border_radius=6)
 
         # Fill

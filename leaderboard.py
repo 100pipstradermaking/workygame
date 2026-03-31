@@ -239,9 +239,9 @@ def _calc_score(player, burgers: int) -> float:
 
 # ── Leaderboard Overlay UI ───────────────────────────────────
 
-LB_BG = (20, 18, 28, 230)
-LB_ROW_B = (42, 40, 55)
-LB_HIGHLIGHT = (60, 50, 30)
+LB_BG = (0, 0, 0, 160)
+LB_ROW_B = (248, 245, 240)
+LB_HIGHLIGHT = (255, 250, 230)
 
 
 class LeaderboardOverlay:
@@ -359,7 +359,7 @@ class LeaderboardOverlay:
         px = (self.sw - pw) // 2
         py = 44
         panel = pygame.Rect(px, py, pw, ph)
-        pygame.draw.rect(surf, (28, 26, 38), panel, border_radius=10)
+        pygame.draw.rect(surf, (255, 255, 255), panel, border_radius=10)
         pygame.draw.rect(surf, LB_ACCENT, panel, 2, border_radius=10)
 
         # Title with trophy icons
@@ -420,7 +420,7 @@ class LeaderboardOverlay:
             if is_me:
                 bg = LB_HIGHLIGHT
             elif i == self._hover_row:
-                bg = (50, 45, 62)
+                bg = (240, 238, 245)
             else:
                 bg = LB_ROW_A if i % 2 == 0 else LB_ROW_B
 

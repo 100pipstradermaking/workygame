@@ -84,7 +84,7 @@ class UI:
         for i in range(0, BAR_H, 6):
             alpha = int(4 + 2 * math.sin(i * 0.1))
             ls = pygame.Surface((REST_W, 1), pygame.SRCALPHA)
-            ls.fill((100, 90, 140, max(0, min(255, alpha))))
+            ls.fill((200, 195, 220, max(0, min(255, alpha))))
             self.screen.blit(ls, (0, bar_y + i))
 
         x_left = 16
@@ -95,7 +95,7 @@ class UI:
         for dy in range(10, BAR_H - 50):
             alpha = int(20 + 10 * math.sin(dy * 0.08))
             ds = pygame.Surface((1, 1), pygame.SRCALPHA)
-            ds.fill((120, 110, 160, max(0, alpha)))
+            ds.fill((200, 195, 220, max(0, alpha)))
             self.screen.blit(ds, (div_x, bar_y + dy))
 
         # ── Left column: Core stats ─────────────────────────
@@ -180,7 +180,7 @@ class UI:
         bar_w = 250
         bar_h_px = 10
         bar_bg_y = bar_y + 92
-        pygame.draw.rect(self.screen, (40, 38, 55),
+        pygame.draw.rect(self.screen, (230, 228, 235),
                          (bar_x, bar_bg_y, bar_w, bar_h_px), border_radius=4)
         if total_orders > 0:
             fill_w = int(bar_w * di_pct / 100)
@@ -297,7 +297,7 @@ class UI:
         # Glowing background
         bg = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
         alpha = int(180 + 40 * math.sin(self.glow_t * 4))
-        bg.fill((20, 20, 30, max(0, min(255, alpha))))
+        bg.fill((255, 255, 255, max(0, min(255, alpha))))
         self.screen.blit(bg, rect.topleft)
         pygame.draw.rect(self.screen, economy.last_event_color,
                          rect, 2, border_radius=6)

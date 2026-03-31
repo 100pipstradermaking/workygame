@@ -625,11 +625,11 @@ def draw_speech_bubble(surf: pygame.Surface, cx: int, cy: int,
 
     # Bubble background
     bg_rect = pygame.Rect(bx, by, tw + 6, th + 4)
-    pygame.draw.rect(surf, (30, 30, 40, 200), bg_rect, border_radius=3)
+    pygame.draw.rect(surf, (255, 255, 255, 230), bg_rect, border_radius=3)
     pygame.draw.rect(surf, color, bg_rect, 1, border_radius=3)
 
     # Tail
-    pygame.draw.polygon(surf, (30, 30, 40),
+    pygame.draw.polygon(surf, (255, 255, 255),
                         [(cx - 2, by + th + 4), (cx + 2, by + th + 4),
                          (cx, by + th + 8)])
 

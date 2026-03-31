@@ -30,13 +30,15 @@ from theme import (
     ACCENT, ACCENT_GLOW, BORDER, BORDER_LIGHT,
     BTN_PRIMARY, BTN_PRIMARY_H, BTN_BUY, BTN_BUY_H,
     BTN_DISABLED, BTN_DIS_TXT,
+    NEON_CYAN, NEON_YELLOW, NEON_MAGENTA, NEON_GREEN, NEON_BLUE, NEON_ORANGE,
 )
 import icons
 from ui_components import (
     get_font, draw_card, draw_button, draw_progress_bar,
     draw_badge, draw_separator, draw_section_header, draw_stat_row,
     draw_panel_bg, draw_glow_border, draw_icon_button,
-    draw_coins_display, draw_locked_overlay,
+    draw_coins_display, draw_locked_overlay, draw_neon_tab,
+    draw_pixel_corners, draw_neon_glow,
 )
 
 # ── Layout constants ─────────────────────────────────────────
@@ -48,45 +50,44 @@ CONTENT_H = SCREEN_H - TOP_BAR_H - BOT_NAV_H  # 614
 
 
 class Tab(IntEnum):
-    HOME = 0
-    WORKERS = 1
-    UPGRADES = 2
-    SABOTAGE = 3
-    GUILD = 4
-    EVENTS = 5
+    WORKERS = 0
+    UPGRADES = 1
+    SABOTAGE = 2
+    GUILD = 3
+    SEASON = 4
 
 
 TAB_INFO = [
-    {"name": "Home",     "icon": "burger"},
     {"name": "Workers",  "icon": "person"},
     {"name": "Upgrades", "icon": "arrow_up"},
     {"name": "Sabotage", "icon": "fire"},
     {"name": "Guild",    "icon": "crown"},
-    {"name": "Events",   "icon": "star"},
+    {"name": "Season",   "icon": "star"},
 ]
 
-# Upgrade sub-tabs
-UPGRADE_TABS = ["Kitchen", "Design", "Business"]
+# Upgrade sub-tabs (Figma: Production, Sales, Automation, Defense)
+UPGRADE_TABS = ["Production", "Sales", "Automation", "Defense"]
 UPGRADE_TAB_COLORS = {
-    "Kitchen":  ((180, 60, 60),  (220, 80, 80)),
-    "Design":   ((60, 140, 200), (80, 170, 240)),
-    "Business": ((120, 60, 180), (160, 90, 220)),
+    "Production":  NEON_GREEN,
+    "Sales":       NEON_YELLOW,
+    "Automation":  NEON_CYAN,
+    "Defense":     NEON_MAGENTA,
 }
 
-# Sabotage attack definitions (placeholder)
+# Sabotage attack definitions (Figma design)
 SABOTAGE_ATTACKS = [
-    {"id": "spy",     "name": "Spy Mission",      "icon": "chef_hat",
-     "desc": "Peek at a rival's income for 30s", "cooldown": 120,
-     "cost": 500, "unlock_level": 3},
-    {"id": "rats",    "name": "Rodent Raid",       "icon": "speed",
-     "desc": "Slow a rival's kitchen by 20% for 60s", "cooldown": 300,
-     "cost": 1200, "unlock_level": 5},
-    {"id": "critic",  "name": "Food Critic Trap",  "icon": "star",
-     "desc": "Send a harsh critic — rival loses attractiveness", "cooldown": 600,
-     "cost": 2500, "unlock_level": 8},
-    {"id": "blackout","name": "Kitchen Blackout",   "icon": "snowflake",
-     "desc": "Shut down rival's grill for 30s", "cooldown": 900,
-     "cost": 5000, "unlock_level": 12},
+    {"id": "grill_jam",       "name": "Grill Jam",        "icon": "fire",
+     "desc": "Jam a rival's grill for 30s", "cooldown": 300,
+     "cost": 100, "damage": 50, "color": NEON_ORANGE},
+    {"id": "power_outage",    "name": "Power Outage",     "icon": "snowflake",
+     "desc": "Cut power to a rival kitchen for 60s", "cooldown": 600,
+     "cost": 200, "damage": 100, "color": NEON_YELLOW},
+    {"id": "food_poisoning",  "name": "Food Poisoning",   "icon": "chef_hat",
+     "desc": "Contaminate rival ingredients — customers flee!", "cooldown": 900,
+     "cost": 300, "damage": 150, "color": NEON_GREEN},
+    {"id": "network_hack",    "name": "Network Hack",     "icon": "speed",
+     "desc": "Hack rival's ordering system — orders cancelled!", "cooldown": 1200,
+     "cost": 500, "damage": 200, "color": NEON_CYAN},
 ]
 
 # Guild perks (placeholder)
@@ -103,7 +104,7 @@ class GameScreen:
 
     def __init__(self, screen: pygame.Surface):
         self.screen = screen
-        self.active_tab: Tab = Tab.HOME
+        self.active_tab: Tab = Tab.WORKERS
         self.glow_t: float = 0.0
 
         # Scrolling per tab
@@ -162,8 +163,8 @@ class GameScreen:
                 "life": random.uniform(0.4, 0.8),
                 "max_life": 0.8,
                 "color": random.choice([
-                    (255, 215, 70), (255, 200, 50), (255, 180, 40),
-                    (80, 230, 120), (255, 255, 200),
+                    NEON_YELLOW, NEON_GREEN, NEON_CYAN,
+                    (255, 200, 50), (255, 255, 200),
                 ]),
             })
 
@@ -192,9 +193,11 @@ class GameScreen:
             # Upgrade sub-tabs
             if self.active_tab == Tab.UPGRADES:
                 sub_y = CONTENT_Y + 4
-                sub_w = SCREEN_W // len(UPGRADE_TABS)
+                margin_sub = 8
+                total_sub_w = SCREEN_W - margin_sub * 2
+                tab_w = total_sub_w // len(UPGRADE_TABS)
                 for i in range(len(UPGRADE_TABS)):
-                    sub_rect = pygame.Rect(i * sub_w, sub_y, sub_w, 28)
+                    sub_rect = pygame.Rect(margin_sub + i * tab_w, sub_y, tab_w - 4, 28)
                     if sub_rect.collidepoint(mx, my):
                         self._upgrade_tab = i
                         self._scroll[Tab.UPGRADES] = 0
@@ -247,7 +250,7 @@ class GameScreen:
             if event.key == pygame.K_l:
                 return "toggle_leaderboard"
             # Number keys switch tabs
-            if pygame.K_1 <= event.key <= pygame.K_6:
+            if pygame.K_1 <= event.key <= pygame.K_5:
                 self.active_tab = Tab(event.key - pygame.K_1)
                 return None
 
@@ -259,14 +262,12 @@ class GameScreen:
         """Draw the complete game screen."""
         self._buttons.clear()
 
-        # Background
+        # Background (light cream)
         self.screen.fill(BG_DARK)
 
         # Content area
         content_rect = pygame.Rect(0, CONTENT_Y, SCREEN_W, CONTENT_H)
-        if self.active_tab == Tab.HOME:
-            self._draw_home(player, economy, ips, restaurant)
-        elif self.active_tab == Tab.WORKERS:
+        if self.active_tab == Tab.WORKERS:
             self._draw_workers(player)
         elif self.active_tab == Tab.UPGRADES:
             self._draw_upgrades(player)
@@ -274,7 +275,7 @@ class GameScreen:
             self._draw_sabotage(player)
         elif self.active_tab == Tab.GUILD:
             self._draw_guild(player)
-        elif self.active_tab == Tab.EVENTS:
+        elif self.active_tab == Tab.SEASON:
             self._draw_events(player, economy)
 
         # Top bar (always on top)
@@ -304,11 +305,9 @@ class GameScreen:
     def _draw_top_bar(self, player: Player, ips: float):
         bar_rect = pygame.Rect(0, 0, SCREEN_W, TOP_BAR_H)
         pygame.draw.rect(self.screen, BG_PANEL, bar_rect)
-        # Bottom glow line
-        glow_a = int(30 + 15 * math.sin(self.glow_t * 2))
-        gs = pygame.Surface((SCREEN_W, 2), pygame.SRCALPHA)
-        gs.fill((*ACCENT[:3], max(0, glow_a)))
-        self.screen.blit(gs, (0, TOP_BAR_H - 2))
+        # Bottom border line (neon cyan)
+        pygame.draw.line(self.screen, NEON_CYAN, (0, TOP_BAR_H - 1),
+                         (SCREEN_W, TOP_BAR_H - 1), 1)
 
         # Animated coins
         target = player.coins
@@ -322,38 +321,38 @@ class GameScreen:
             self._display_coins = target
 
         x = 12
-        # Coin icon + amount
+        # Coin icon + amount (neon-yellow)
         self.screen.blit(icons.get("coin"), (x, 14))
         font_coins = get_font(22, bold=True)
-        ct = font_coins.render(f"{self._display_coins:,.0f}", True, TEXT_GOLD)
+        ct = font_coins.render(f"{self._display_coins:,.0f}", True, NEON_YELLOW)
         self.screen.blit(ct, (x + 20, 12))
         x += 28 + ct.get_width()
 
         # Divider
-        pygame.draw.rect(self.screen, BORDER, (x, 8, 1, 32))
+        pygame.draw.rect(self.screen, BORDER_LIGHT, (x, 8, 1, 32))
         x += 10
 
-        # Income/s
+        # Income/s (neon-green)
         font_sm = get_font(13)
         self.screen.blit(icons.get_scaled("speed", 14), (x, 16))
-        it = font_sm.render(f"{ips:,.1f}/s", True, TEXT_GREEN)
+        it = font_sm.render(f"{ips:,.1f}/s", True, NEON_GREEN)
         self.screen.blit(it, (x + 16, 16))
         x += 20 + it.get_width()
 
-        # Workers count
-        pygame.draw.rect(self.screen, BORDER, (x, 8, 1, 32))
+        # Workers count (neon-cyan)
+        pygame.draw.rect(self.screen, BORDER_LIGHT, (x, 8, 1, 32))
         x += 10
         self.screen.blit(icons.get_scaled("person", 14), (x, 16))
-        wt = font_sm.render(f"{len(player.workers)}", True, TEXT_CYAN)
+        wt = font_sm.render(f"{len(player.workers)}", True, NEON_CYAN)
         self.screen.blit(wt, (x + 16, 16))
         x += 20 + wt.get_width()
 
-        # Prestige level
-        pygame.draw.rect(self.screen, BORDER, (x, 8, 1, 32))
+        # Prestige level (neon-magenta)
+        pygame.draw.rect(self.screen, BORDER_LIGHT, (x, 8, 1, 32))
         x += 10
         self.screen.blit(icons.get_scaled("prestige", 12), (x, 17))
         pt = font_sm.render(f"P{player.prestige_level} (x{player.prestige_multiplier:.1f})",
-                            True, TEXT_PINK)
+                            True, NEON_MAGENTA)
         self.screen.blit(pt, (x + 16, 16))
 
         # Active bonus
@@ -366,32 +365,36 @@ class GameScreen:
                 True, col)
             bx = SCREEN_W - 230 - bt.get_width()
             bg_s = pygame.Surface((bt.get_width() + 8, 20), pygame.SRCALPHA)
-            bg_s.fill((255, 80, 50, int(30 + 20 * pulse)))
+            bg_s.fill((*NEON_ORANGE[:3], int(30 + 20 * pulse)))
             self.screen.blit(bg_s, (bx - 4, 14))
             self.screen.blit(bt, (bx, 15))
 
         # Restaurant name
         if player.restaurant_name:
             name_font = get_font(11)
-            nt = name_font.render(player.restaurant_name, True, TEXT_DIM)
+            nt = name_font.render(player.restaurant_name, True, TEXT_GRAY)
             self.screen.blit(nt, (12, 34))
 
-        # Action buttons (right side)
+        # Action buttons (right side) — neon style
         mx, my = pygame.mouse.get_pos()
         # Leaderboard
-        lb_c = (70, 120, 200) if self._btn_leaderboard.collidepoint(mx, my) else (50, 90, 160)
-        pygame.draw.rect(self.screen, lb_c, self._btn_leaderboard, border_radius=4)
+        lb_hover = self._btn_leaderboard.collidepoint(mx, my)
+        lb_c = NEON_BLUE if lb_hover else (100, 149, 237)
+        pygame.draw.rect(self.screen, lb_c, self._btn_leaderboard, border_radius=6)
+        draw_pixel_corners(self.screen, self._btn_leaderboard, lb_c, 2)
         lb_ico = icons.get_scaled("trophy", 14)
-        lb_txt = get_font(11).render("RANK", True, TEXT_WHITE)
+        lb_txt = get_font(11, bold=True).render("RANK", True, (255, 255, 255))
         lbx = self._btn_leaderboard.centerx - (14 + 4 + lb_txt.get_width()) // 2
         self.screen.blit(lb_ico, (lbx, self._btn_leaderboard.centery - 7))
         self.screen.blit(lb_txt, (lbx + 18, self._btn_leaderboard.centery - lb_txt.get_height() // 2))
 
         # Exit
-        ex_c = (200, 70, 70) if self._btn_exit.collidepoint(mx, my) else (160, 50, 50)
-        pygame.draw.rect(self.screen, ex_c, self._btn_exit, border_radius=4)
+        ex_hover = self._btn_exit.collidepoint(mx, my)
+        ex_c = ACCENT if ex_hover else (220, 120, 120)
+        pygame.draw.rect(self.screen, ex_c, self._btn_exit, border_radius=6)
+        draw_pixel_corners(self.screen, self._btn_exit, ex_c, 2)
         ex_ico = icons.get_scaled("door", 14)
-        ex_txt = get_font(11).render("MENU", True, TEXT_WHITE)
+        ex_txt = get_font(11, bold=True).render("MENU", True, (255, 255, 255))
         exx = self._btn_exit.centerx - (14 + 4 + ex_txt.get_width()) // 2
         self.screen.blit(ex_ico, (exx, self._btn_exit.centery - 7))
         self.screen.blit(ex_txt, (exx + 18, self._btn_exit.centery - ex_txt.get_height() // 2))
@@ -402,23 +405,20 @@ class GameScreen:
     def _draw_bottom_nav(self):
         nav_y = SCREEN_H - BOT_NAV_H
         nav_rect = pygame.Rect(0, nav_y, SCREEN_W, BOT_NAV_H)
-        pygame.draw.rect(self.screen, BG_PANEL, nav_rect)
-        # Top glow line
-        glow_a = int(25 + 12 * math.sin(self.glow_t * 1.8))
-        gs = pygame.Surface((SCREEN_W, 2), pygame.SRCALPHA)
-        gs.fill((*ACCENT[:3], max(0, glow_a)))
-        self.screen.blit(gs, (0, nav_y))
+        pygame.draw.rect(self.screen, BG, nav_rect)
+        # Top border line
+        pygame.draw.line(self.screen, BORDER_LIGHT, (0, nav_y), (SCREEN_W, nav_y), 1)
 
         tab_w = SCREEN_W // len(TAB_INFO)
         for i, info in enumerate(TAB_INFO):
             rect = self._nav_rects[i]
             active = i == self.active_tab
             draw_icon_button(self.screen, rect, info["icon"], info["name"],
-                             active=active, color=BG_PANEL,
-                             active_color=BG_CARD, glow_t=self.glow_t)
-            # Dividers between tabs
+                             active=active, color=BG,
+                             active_color=BG_PANEL, glow_t=self.glow_t)
+            # Dividers
             if i > 0:
-                pygame.draw.rect(self.screen, BORDER,
+                pygame.draw.rect(self.screen, BORDER_LIGHT,
                                  (rect.x, nav_y + 8, 1, BOT_NAV_H - 16))
 
     # ═══════════════════════════════════════════════════════════
@@ -462,9 +462,9 @@ class GameScreen:
         ox = 10
         oy = CONTENT_Y + CONTENT_H - oh - 10
         overlay = pygame.Surface((ow, oh), pygame.SRCALPHA)
-        overlay.fill((18, 16, 24, 180))
+        overlay.fill((255, 255, 255, 200))
         self.screen.blit(overlay, (ox, oy))
-        pygame.draw.rect(self.screen, BORDER, (ox, oy, ow, oh), 1, border_radius=6)
+        pygame.draw.rect(self.screen, BORDER_LIGHT, (ox, oy, ow, oh), 1, border_radius=6)
 
         # Economy stats
         font = get_font(12)
@@ -527,11 +527,11 @@ class GameScreen:
         x_right = margin * 2 + card_w
         y = CONTENT_Y + 12 - scroll
 
-        # ── Header ───────────────────────────────────────────
+        # ── Header (Figma: text-2xl text-neon-cyan uppercase) ──
         font_title = get_font(20, bold=True)
-        title = font_title.render("WORKERS", True, TEXT_GOLD)
+        title = font_title.render("WORKERS", True, NEON_CYAN)
         self.screen.blit(title, (margin, y))
-        count_txt = get_font(14).render(f"{len(player.workers)} hired", True, TEXT_GRAY)
+        count_txt = get_font(14).render(f"Manage your burger crew", True, TEXT_GRAY)
         self.screen.blit(count_txt, (margin + title.get_width() + 12, y + 4))
         y += 32
 
@@ -659,13 +659,16 @@ class GameScreen:
         y = content_y + 8 - scroll
 
         if self._upgrade_tab == 0:
-            y = self._draw_upgrade_items(player, y, margin, "Kitchen", KITCHEN_ITEMS,
+            y = self._draw_upgrade_items(player, y, margin, "Production", KITCHEN_ITEMS,
                                           "Production")
         elif self._upgrade_tab == 1:
-            y = self._draw_design_upgrades(player, y, margin)
+            y = self._draw_upgrade_items(player, y, margin, "Sales", DESIGN_ITEMS,
+                                          "Sales")
         elif self._upgrade_tab == 2:
-            y = self._draw_upgrade_items(player, y, margin, "Business", BUSINESS_ITEMS,
-                                          "Sales|Automation")
+            y = self._draw_upgrade_items(player, y, margin, "Automation", BUSINESS_ITEMS,
+                                          "Automation")
+        elif self._upgrade_tab == 3:
+            y = self._draw_defense_tab(player, y, margin)
 
         # Prestige section at bottom
         y += 16
@@ -676,27 +679,15 @@ class GameScreen:
 
     def _draw_upgrade_tabs(self):
         sub_y = CONTENT_Y + 4
-        sub_w = SCREEN_W // len(UPGRADE_TABS)
+        margin = 8
+        total_w = SCREEN_W - margin * 2
+        tab_w = total_w // len(UPGRADE_TABS)
         for i, name in enumerate(UPGRADE_TABS):
-            rect = pygame.Rect(i * sub_w, sub_y, sub_w, 28)
+            rect = pygame.Rect(margin + i * tab_w, sub_y, tab_w - 4, 28)
             active = i == self._upgrade_tab
-            colors = UPGRADE_TAB_COLORS[name]
-            if active:
-                pygame.draw.rect(self.screen, colors[0], rect)
-                pygame.draw.rect(self.screen, colors[1],
-                                 (rect.x, rect.bottom - 3, rect.width, 3))
-            else:
-                mx, my = pygame.mouse.get_pos()
-                c = (45, 42, 60) if rect.collidepoint(mx, my) else (35, 32, 48)
-                pygame.draw.rect(self.screen, c, rect)
-
-            ico = icons.get_scaled(icons.TAB_ICONS.get(name, "arrow_up"), 12)
-            txt = get_font(12).render(name, True,
-                                       TEXT_WHITE if active else TEXT_GRAY)
-            total_w = 12 + 4 + txt.get_width()
-            ix = rect.centerx - total_w // 2
-            self.screen.blit(ico, (ix, rect.centery - 6))
-            self.screen.blit(txt, (ix + 16, rect.centery - txt.get_height() // 2))
+            color = UPGRADE_TAB_COLORS[name]
+            draw_neon_tab(self.screen, rect, name, active=active,
+                          color=color, glow_t=self.glow_t)
 
     def _draw_upgrade_items(self, player, y, margin, section_name, items, upgrade_cats):
         """Draw upgrade category items. Returns new y."""
@@ -816,11 +807,11 @@ class GameScreen:
         attract = get_attractiveness(player)
         header_h = 70
         if attract >= 80:
-            hdr_bg, hdr_border = (40, 42, 25), TEXT_GOLD
+            hdr_bg, hdr_border = BG_CARD, NEON_YELLOW
         elif attract >= 50:
-            hdr_bg, hdr_border = (25, 42, 35), TEXT_GREEN
+            hdr_bg, hdr_border = BG_CARD, NEON_GREEN
         else:
-            hdr_bg, hdr_border = (30, 30, 45), TEXT_CYAN
+            hdr_bg, hdr_border = BG_CARD, NEON_CYAN
         header_rect = pygame.Rect(x, y, w, header_h)
         pygame.draw.rect(self.screen, hdr_bg, header_rect, border_radius=6)
         pygame.draw.rect(self.screen, hdr_border, header_rect, 2, border_radius=6)
@@ -853,7 +844,7 @@ class GameScreen:
         # Seats summary
         seats = get_seat_count(player)
         seats_rect = pygame.Rect(x, y, w, 28)
-        pygame.draw.rect(self.screen, (35, 50, 70), seats_rect, border_radius=4)
+        pygame.draw.rect(self.screen, BG, seats_rect, border_radius=4)
         self.screen.blit(icons.get_scaled("chair", 12), (x + 10, y + 8))
         self.screen.blit(get_font(12).render(f"Seats: {seats}", True, TEXT_CYAN), (x + 26, y + 6))
         tip = get_font(11).render("More seats = dine-in x1.5", True, TEXT_GREEN)
@@ -927,8 +918,51 @@ class GameScreen:
 
         return y
 
+    def _draw_defense_tab(self, player, y, margin):
+        """Defense tab — prestige + security upgrades."""
+        w = SCREEN_W - margin * 2
+        x = margin
+
+        # Header
+        y = draw_section_header(self.screen, x, y, w, "Defense Upgrades",
+                                color=NEON_MAGENTA, icon_name="snowflake")
+        y += 4
+
+        # Security placeholder cards
+        defense_items = [
+            {"name": "Security System", "desc": "Protect against sabotage attacks",
+             "icon": "door", "color": NEON_MAGENTA},
+            {"name": "Firewall", "desc": "Block network hacks from rivals",
+             "icon": "snowflake", "color": NEON_CYAN},
+            {"name": "Insurance", "desc": "Recover faster from attacks",
+             "icon": "coin", "color": NEON_GREEN},
+        ]
+        for item in defense_items:
+            card_h = 64
+            mx_m, my_m = pygame.mouse.get_pos()
+            card_rect = pygame.Rect(x, y, w, card_h)
+            hovered = card_rect.collidepoint(mx_m, my_m)
+            draw_card(self.screen, x, y, w, card_h, hover=hovered,
+                      accent_color=item["color"], glow_t=self.glow_t)
+
+            ico = icons.get_scaled(item["icon"], 16)
+            self.screen.blit(ico, (x + 10, y + 10))
+            name_txt = get_font(14, bold=True).render(item["name"], True, TEXT_WHITE)
+            self.screen.blit(name_txt, (x + 32, y + 8))
+            desc_txt = get_font(11).render(item["desc"], True, TEXT_GRAY)
+            self.screen.blit(desc_txt, (x + 32, y + 26))
+
+            draw_locked_overlay(self.screen, card_rect, "COMING SOON", self.glow_t)
+            y += card_h + 6
+
+        y += 8
+
+        # Prestige section at bottom
+        y = self._draw_prestige_section(player, y, margin)
+        return y
+
     def _draw_prestige_section(self, player, y, margin):
-        """Draw prestige button section."""
+        """Draw prestige button section — neon style."""
         w = SCREEN_W - margin * 2
         x = margin
         rect = pygame.Rect(x, y, w, 50)
@@ -937,20 +971,25 @@ class GameScreen:
 
         if can_prestige:
             pulse = int(15 * math.sin(self.glow_t * 3))
-            color = (180 + pulse, 100, 50)
+            color = (NEON_ORANGE[0], max(0, NEON_ORANGE[1] + pulse), NEON_ORANGE[2])
         else:
             color = BTN_DISABLED
 
         mx, my = pygame.mouse.get_pos()
         hovered = rect.collidepoint(mx, my) and can_prestige
-        c = (220 + (pulse if can_prestige else 0), 130, 60) if hovered else color
-        pygame.draw.rect(self.screen, c, rect, border_radius=6)
-        bc = ACCENT if can_prestige else BORDER
-        pygame.draw.rect(self.screen, bc, rect, 2, border_radius=6)
+        if hovered and can_prestige:
+            c = (min(255, color[0] + 20), min(255, color[1] + 20), color[2])
+        else:
+            c = color
+        pygame.draw.rect(self.screen, c, rect, border_radius=8)
+        bc = NEON_ORANGE if can_prestige else BORDER_LIGHT
+        pygame.draw.rect(self.screen, bc, rect, 2, border_radius=8)
+        if can_prestige:
+            draw_pixel_corners(self.screen, rect, NEON_ORANGE, 3)
 
         ico = icons.get("prestige")
         label = f"PRESTIGE  (+{bonus:.2f}x multiplier)"
-        txt = get_font(16, bold=True).render(label, True, TEXT_WHITE)
+        txt = get_font(16, bold=True).render(label, True, (255, 255, 255))
         total_w = 16 + 8 + txt.get_width()
         ix = rect.centerx - total_w // 2
         self.screen.blit(ico, (ix, rect.centery - 8))
@@ -974,44 +1013,45 @@ class GameScreen:
         w = SCREEN_W - margin * 2
         y = CONTENT_Y + 12
 
-        # Header with fire icon
+        # Header (Figma: neon-magenta for sabotage)
         fire_ico = icons.get_scaled("fire", 20)
         self.screen.blit(fire_ico, (margin, y))
-        title = get_font(22, bold=True).render("SABOTAGE", True, TEXT_RED)
+        title = get_font(22, bold=True).render("SABOTAGE", True, NEON_MAGENTA)
         self.screen.blit(title, (margin + 26, y - 2))
-        subtitle = get_font(12).render("Disrupt rival restaurants to gain the edge!",
+        subtitle = get_font(12).render("Attack rival restaurants",
                                        True, TEXT_GRAY)
         self.screen.blit(subtitle, (margin, y + 24))
         y += 48
 
-        # Attack cards
+        # Attack cards with neon colors
         for atk in SABOTAGE_ATTACKS:
             card_h = 90
             mx_m, my_m = pygame.mouse.get_pos()
             card_rect = pygame.Rect(margin, y, w, card_h)
             hovered = card_rect.collidepoint(mx_m, my_m)
 
+            atk_color = atk.get("color", NEON_ORANGE)
             draw_card(self.screen, margin, y, w, card_h, hover=hovered,
-                      accent_color=TEXT_RED, glow_t=self.glow_t)
+                      accent_color=atk_color, glow_t=self.glow_t)
 
             # Icon
             ico = icons.get_scaled(atk["icon"], 18)
             self.screen.blit(ico, (margin + 12, y + 12))
 
-            # Name + unlock requirement
+            # Name
             name_txt = get_font(16, bold=True).render(atk["name"], True, TEXT_WHITE)
             self.screen.blit(name_txt, (margin + 38, y + 8))
 
-            # Unlock level badge
+            # Damage badge
             draw_badge(self.screen, margin + 38 + name_txt.get_width() + 8,
-                       y + 10, f"LV{atk['unlock_level']}+", (100, 60, 60), 10)
+                       y + 10, f"{atk['damage']}DMG", atk_color, 10)
 
             # Description
             desc = get_font(12).render(atk["desc"], True, TEXT_GRAY)
             self.screen.blit(desc, (margin + 38, y + 28))
 
-            # Cost + cooldown
-            cost_txt = get_font(11).render(f"Cost: {atk['cost']:,}c", True, TEXT_GOLD)
+            # Cost + cooldown with neon styling
+            cost_txt = get_font(11).render(f"Cost: {atk['cost']:,}c", True, NEON_YELLOW)
             cd_txt = get_font(11).render(f"Cooldown: {atk['cooldown']}s", True, TEXT_DIM)
             self.screen.blit(cost_txt, (margin + 38, y + 46))
             self.screen.blit(cd_txt, (margin + 38 + cost_txt.get_width() + 16, y + 46))
@@ -1024,11 +1064,12 @@ class GameScreen:
         # Info box at bottom
         y += 8
         info_rect = pygame.Rect(margin, y, w, 60)
-        pygame.draw.rect(self.screen, (30, 25, 40), info_rect, border_radius=6)
-        pygame.draw.rect(self.screen, BORDER, info_rect, 1, border_radius=6)
+        pygame.draw.rect(self.screen, BG_CARD, info_rect, border_radius=8)
+        pygame.draw.rect(self.screen, NEON_MAGENTA, info_rect, 1, border_radius=8)
+        draw_pixel_corners(self.screen, info_rect, NEON_MAGENTA, 2)
         info_icon = icons.get_scaled("sparkle", 16)
         self.screen.blit(info_icon, (margin + 12, y + 10))
-        info_t1 = get_font(13, bold=True).render("PvP Sabotage System", True, TEXT_PINK)
+        info_t1 = get_font(13, bold=True).render("PvP Sabotage System", True, NEON_MAGENTA)
         self.screen.blit(info_t1, (margin + 34, y + 8))
         info_t2 = get_font(11).render(
             "Attack rival burger joints! Steal customers, sabotage kitchens,",
@@ -1054,13 +1095,13 @@ class GameScreen:
         w = SCREEN_W - margin * 2
         y = CONTENT_Y + 12
 
-        # Header
+        # Header (Figma: neon-yellow for guild)
         crown_ico = icons.get_scaled("crown", 20)
         self.screen.blit(crown_ico, (margin, y))
-        title = get_font(22, bold=True).render("GUILD", True, TEXT_GOLD)
+        title = get_font(22, bold=True).render("GUILD", True, NEON_YELLOW)
         self.screen.blit(title, (margin + 26, y - 2))
         subtitle = get_font(12).render(
-            "Join forces with other burger chefs for shared bonuses!",
+            "Build your burger empire together",
             True, TEXT_GRAY)
         self.screen.blit(subtitle, (margin, y + 24))
         y += 48
@@ -1069,12 +1110,13 @@ class GameScreen:
         join_h = 100
         join_rect = pygame.Rect(margin, y, w, join_h)
         pygame.draw.rect(self.screen, BG_CARD, join_rect, border_radius=8)
-        pygame.draw.rect(self.screen, TEXT_GOLD, join_rect, 2, border_radius=8)
+        pygame.draw.rect(self.screen, NEON_YELLOW, join_rect, 2, border_radius=8)
+        draw_pixel_corners(self.screen, join_rect, NEON_YELLOW, 3)
 
-        # Animated glow
-        glow_a = int(15 + 10 * math.sin(self.glow_t * 1.5))
+        # Subtle neon glow
+        glow_a = int(10 + 8 * math.sin(self.glow_t * 1.5))
         gs = pygame.Surface((w, join_h), pygame.SRCALPHA)
-        gs.fill((*TEXT_GOLD[:3], max(0, glow_a)))
+        gs.fill((*NEON_YELLOW[:3], max(0, glow_a)))
         self.screen.blit(gs, (margin, y))
 
         self.screen.blit(icons.get_scaled("building", 22), (margin + 16, y + 16))
@@ -1088,12 +1130,11 @@ class GameScreen:
         self.screen.blit(create_desc, (margin + 46, y + 38))
         self.screen.blit(create_desc2, (margin + 46, y + 54))
 
-        # Coming soon overlay on the create section
         draw_locked_overlay(self.screen, join_rect, "COMING SOON", self.glow_t)
         y += join_h + 16
 
         # Guild perks preview
-        perks_title = get_font(16, bold=True).render("Guild Perks Preview", True, TEXT_CYAN)
+        perks_title = get_font(16, bold=True).render("GUILD PERKS", True, NEON_CYAN)
         self.screen.blit(perks_title, (margin, y))
         y += 24
 
@@ -1108,7 +1149,7 @@ class GameScreen:
             card_h = 66
             card_rect = pygame.Rect(px, py, perk_w, card_h)
             draw_card(self.screen, px, py, perk_w, card_h,
-                      accent_color=TEXT_CYAN, glow_t=self.glow_t)
+                      accent_color=NEON_CYAN, glow_t=self.glow_t)
 
             # Icon
             self.screen.blit(icons.get_scaled(perk["icon"], 16), (px + 10, py + 10))
@@ -1145,36 +1186,33 @@ class GameScreen:
         w = SCREEN_W - margin * 2
         y = CONTENT_Y + 12
 
-        # Header
+        # Header (Figma: neon-yellow for season)
         star_ico = icons.get_scaled("star", 20)
         self.screen.blit(star_ico, (margin, y))
-        title = get_font(22, bold=True).render("EVENTS & SEASONS", True, TEXT_PINK)
+        title = get_font(22, bold=True).render("SEASON", True, NEON_YELLOW)
         self.screen.blit(title, (margin + 26, y - 2))
         y += 32
 
         # ── Season Banner ────────────────────────────────────
         season_h = 90
         season_rect = pygame.Rect(margin, y, w, season_h)
-        # Gradient background
-        for sy in range(season_h):
-            alpha = int(40 + 20 * math.sin(sy * 0.05 + self.glow_t))
-            grad = pygame.Surface((w, 1), pygame.SRCALPHA)
-            grad.fill((80, 50, 120, max(0, min(255, alpha))))
-            self.screen.blit(grad, (margin, y + sy))
-        pygame.draw.rect(self.screen, TEXT_PINK, season_rect, 2, border_radius=8)
+        # Light gradient background
+        pygame.draw.rect(self.screen, BG_CARD, season_rect, border_radius=8)
+        pygame.draw.rect(self.screen, NEON_YELLOW, season_rect, 2, border_radius=8)
+        draw_pixel_corners(self.screen, season_rect, NEON_YELLOW, 3)
 
         # Season info
         self.screen.blit(icons.get_scaled("trophy", 22), (margin + 16, y + 12))
         season_title = get_font(20, bold=True).render("Season 1: Grand Opening", True, TEXT_WHITE)
         self.screen.blit(season_title, (margin + 46, y + 10))
 
-        # Timer (mock)
-        timer_txt = get_font(14).render("Ends in: 27d 14h 32m", True, TEXT_GOLD)
+        # Timer
+        timer_txt = get_font(14).render("Ends in: 27d 14h 32m", True, NEON_YELLOW)
         self.screen.blit(timer_txt, (margin + 46, y + 36))
 
         # Season progress bar
         draw_progress_bar(self.screen, margin + 46, y + 58, w - 80, 12,
-                          0.35, color=TEXT_PINK, show_shimmer=True, glow_t=self.glow_t)
+                          0.35, color=NEON_YELLOW, show_shimmer=True, glow_t=self.glow_t)
         pct_lbl = get_font(11).render("35% complete", True, TEXT_GRAY)
         self.screen.blit(pct_lbl, (margin + 46, y + 72))
 
@@ -1182,7 +1220,7 @@ class GameScreen:
         y += season_h + 16
 
         # ── Active Events ────────────────────────────────────
-        events_title = get_font(16, bold=True).render("Active Events", True, TEXT_CYAN)
+        events_title = get_font(16, bold=True).render("ACTIVE EVENTS", True, NEON_CYAN)
         self.screen.blit(events_title, (margin, y))
         y += 24
 
@@ -1205,7 +1243,7 @@ class GameScreen:
 
         # ── Season Rewards Preview ───────────────────────────
         y += 8
-        rewards_title = get_font(16, bold=True).render("Season Rewards Preview", True, TEXT_GOLD)
+        rewards_title = get_font(16, bold=True).render("SEASON REWARDS", True, NEON_YELLOW)
         self.screen.blit(rewards_title, (margin, y))
         y += 24
 
@@ -1237,13 +1275,13 @@ class GameScreen:
 
         # ── Leaderboard mini ─────────────────────────────────
         y += 12
-        lb_title = get_font(16, bold=True).render("Top Players This Season", True, TEXT_GOLD)
+        lb_title = get_font(16, bold=True).render("TOP PLAYERS THIS SEASON", True, NEON_YELLOW)
         self.screen.blit(lb_title, (margin, y))
         y += 24
 
         lb_rect = pygame.Rect(margin, y, w, 70)
-        pygame.draw.rect(self.screen, BG_CARD, lb_rect, border_radius=6)
-        pygame.draw.rect(self.screen, BORDER, lb_rect, 1, border_radius=6)
+        pygame.draw.rect(self.screen, BG_CARD, lb_rect, border_radius=8)
+        pygame.draw.rect(self.screen, BORDER_LIGHT, lb_rect, 1, border_radius=8)
         lb_hint = get_font(13).render(
             "Check the full leaderboard from the top bar!", True, TEXT_GRAY)
         self.screen.blit(lb_hint, lb_hint.get_rect(center=lb_rect.center))

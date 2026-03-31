@@ -8,9 +8,11 @@ import math
 import os
 import random
 from sprites import WorkySpriteRenderer, ARCHETYPES
-from theme import (BG_DARK, BG_PANEL, TEXT_WHITE, TEXT_GOLD, TEXT_GRAY, TEXT_RED,
+from theme import (BG_DARK, BG_PANEL, BG_CARD, TEXT_WHITE, TEXT_GOLD, TEXT_GRAY, TEXT_RED,
                    BTN_PRIMARY, BTN_PRIMARY_H, BTN_SECONDARY, BTN_SECONDARY_H,
-                   BTN_DISABLED, BORDER_LIGHT as BORDER, ACCENT)
+                   BTN_DISABLED, BORDER_LIGHT as BORDER, ACCENT,
+                   NEON_CYAN, NEON_YELLOW, NEON_MAGENTA, NEON_GREEN, NEON_BLUE, NEON_ORANGE)
+from ui_components import draw_pixel_corners
 import icons
 
 MAX_NAME_LENGTH = 16
@@ -84,8 +86,8 @@ class StartMenu:
 
     def _spawn_confetti(self, cx, cy, count=40):
         """Burst confetti particles from a point."""
-        colors = [(255,80,80),(80,200,255),(255,220,60),(100,255,120),
-                  (200,120,255),(255,160,60)]
+        colors = [ACCENT, NEON_CYAN, NEON_YELLOW, NEON_GREEN,
+                  NEON_MAGENTA, NEON_ORANGE]
         for _ in range(count):
             angle = random.uniform(0, math.tau)
             speed = random.uniform(80, 250)
@@ -302,21 +304,21 @@ class StartMenu:
                             BTN_SECONDARY_H if has_save else BTN_DISABLED, "continue")
 
         self._draw_menu_btn(pygame.Rect(cx - 130, 505, 260, 50),
-                            "LEADERBOARD", (50, 90, 160), (70, 120, 200), "leaderboard")
+                            "LEADERBOARD", NEON_BLUE, (96, 165, 250), "leaderboard")
 
         self._draw_menu_btn(pygame.Rect(cx - 130, 565, 260, 50),
-                            "QUIT", (100, 50, 50), (140, 70, 70), "quit")
+                            "QUIT", (180, 100, 100), (200, 130, 130), "quit")
 
         # Show leaderboard overlay if toggled
         if getattr(self, '_show_lb', False):
             self._draw_menu_leaderboard()
 
         # Version
-        ver = self.font_sm.render("v0.2.0", True, (60, 60, 70))
+        ver = self.font_sm.render("v0.2.0", True, TEXT_GRAY)
         self.screen.blit(ver, (10, self.sh - 20))
 
         # Website
-        site = self.font_sm.render("workyworker.xyz", True, (80, 80, 100))
+        site = self.font_sm.render("workyworker.xyz", True, NEON_CYAN)
         self.screen.blit(site, (self.sw - site.get_width() - 10, self.sh - 20))
 
     # ── Pixel banner renderer ────────────────────────────────
@@ -339,8 +341,8 @@ class StartMenu:
 
     def _draw_pixel_banner(self, cx: int, top_y: int):
         """Draw WORKY / BURGERS FARM pixel title with glow and shading."""
-        lines = [("WORKY", (255, 200, 50), (180, 130, 20)),
-                 ("BURGERS FARM", (240, 100, 40), (170, 55, 20))]
+        lines = [("WORKY", NEON_CYAN, (0, 140, 142)),
+                 ("BURGERS FARM", ACCENT, (180, 60, 60))]
         PX = 3
         LW = 5; LH = 7; GAP = 2
         LINE_GAP = 14
@@ -374,14 +376,14 @@ class StartMenu:
                                                  (px_x, px_y, PX, 1))
 
     def _draw_bg_scene(self):
-        """Animated kitchen background with floating particles and tiles."""
+        """Animated kitchen background — light theme with floating particles."""
         # Tile floor bottom
         floor_y = self.sh - 60
         for gx in range(0, self.sw, 24):
-            shade = 20 + (gx // 24 % 2) * 6
-            pygame.draw.rect(self.screen, (shade, shade - 2, shade + 10),
+            shade = 230 + (gx // 24 % 2) * 8
+            pygame.draw.rect(self.screen, (shade, shade - 3, shade - 10),
                              (gx, floor_y, 24, self.sh - floor_y))
-        pygame.draw.line(self.screen, (45, 40, 60),
+        pygame.draw.line(self.screen, (200, 195, 185),
                          (0, floor_y), (self.sw, floor_y), 2)
 
         # Floating ingredient particles
@@ -389,17 +391,17 @@ class StartMenu:
             phase = i * 2.1 + self.anim_frame * 0.025
             px = int((i * 47 + 13) % self.sw)
             py = int((self.sh * 0.4 + math.sin(phase) * 250) % self.sh)
-            alpha = int(25 + 20 * math.sin(phase * 1.7))
+            alpha = int(35 + 25 * math.sin(phase * 1.7))
             size = 3 + i % 4
 
             if i % 4 == 0:
-                col = (255, 200, 50)     # gold (coin)
+                col = NEON_YELLOW
             elif i % 4 == 1:
-                col = (200, 100, 40)     # brown (bun)
+                col = NEON_ORANGE
             elif i % 4 == 2:
-                col = (80, 180, 60)      # green (lettuce)
+                col = NEON_GREEN
             else:
-                col = (220, 60, 40)      # red (tomato)
+                col = ACCENT
 
             s = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
             pygame.draw.circle(s, (*col, min(255, alpha)), (size, size), size)
@@ -410,13 +412,13 @@ class StartMenu:
         # Grill body
         gw, gh = 80, 24
         gx, gy = cx - gw // 2, cy
-        pygame.draw.rect(self.screen, (60, 55, 65), (gx, gy, gw, gh),
+        pygame.draw.rect(self.screen, (90, 85, 95), (gx, gy, gw, gh),
                          border_radius=3)
-        pygame.draw.rect(self.screen, (90, 85, 100), (gx, gy, gw, gh),
+        pygame.draw.rect(self.screen, (120, 115, 130), (gx, gy, gw, gh),
                          1, border_radius=3)
         # Grate lines
         for lx in range(gx + 6, gx + gw - 6, 8):
-            pygame.draw.line(self.screen, (80, 75, 90),
+            pygame.draw.line(self.screen, (110, 105, 120),
                              (lx, gy + 4), (lx, gy + gh - 4), 1)
 
         # Flames under grill
@@ -448,7 +450,7 @@ class StartMenu:
             sa = max(0, 50 - int((sp * 10) % 30) * 2)
             if sa > 0:
                 smoke_s = pygame.Surface((10, 10), pygame.SRCALPHA)
-                pygame.draw.circle(smoke_s, (160, 160, 170, sa), (5, 5), 4)
+                pygame.draw.circle(smoke_s, (200, 200, 210, sa), (5, 5), 4)
                 self.screen.blit(smoke_s, (sx, sy))
 
         # Mascot left (burger chef, facing right)
@@ -467,13 +469,14 @@ class StartMenu:
     def _draw_register(self):
         cx = self.sw // 2
 
-        # Panel background
+        # Panel background (light theme)
         panel = pygame.Rect(cx - 200, 120, 400, 500)
         pygame.draw.rect(self.screen, BG_PANEL, panel, border_radius=8)
-        pygame.draw.rect(self.screen, ACCENT, panel, 2, border_radius=8)
+        pygame.draw.rect(self.screen, NEON_CYAN, panel, 2, border_radius=8)
+        draw_pixel_corners(self.screen, panel, NEON_CYAN, 3)
 
         # Title
-        title = self.font_md.render("OPEN YOUR BURGER JOINT", True, TEXT_GOLD)
+        title = self.font_md.render("OPEN YOUR BURGER JOINT", True, NEON_CYAN)
         self.screen.blit(title, title.get_rect(center=(cx, 160)))
 
         # Mascot
@@ -511,26 +514,24 @@ class StartMenu:
 
         # Back
         self._draw_menu_btn(pygame.Rect(cx - 120, 535, 240, 40),
-                            "BACK", (70, 70, 80), (90, 90, 100), "door")
+                            "BACK", (180, 180, 190), (200, 200, 210), "door")
 
     def _draw_input_field(self, rect, label, value, active, placeholder=""):
         # Label
         lbl = self.font_sm.render(label, True, TEXT_WHITE)
         self.screen.blit(lbl, (rect.x, rect.y - 18))
 
-        # Field background
-        bg_color = (50, 50, 65) if active else (40, 40, 52)
-        border_color = ACCENT if active else BORDER
-        pygame.draw.rect(self.screen, bg_color, rect, border_radius=4)
-        pygame.draw.rect(self.screen, border_color, rect, 2, border_radius=4)
+        # Field background (light theme)
+        bg_color = (255, 255, 255) if active else (248, 245, 240)
+        border_color = NEON_CYAN if active else BORDER
+        pygame.draw.rect(self.screen, bg_color, rect, border_radius=6)
+        pygame.draw.rect(self.screen, border_color, rect, 2, border_radius=6)
 
         if value:
-            # Text
             txt = self.font_input.render(value, True, TEXT_WHITE)
             self.screen.blit(txt, (rect.x + 10, rect.y + 8))
         else:
-            # Placeholder
-            txt = self.font_input.render(placeholder, True, (90, 90, 110))
+            txt = self.font_input.render(placeholder, True, (178, 190, 195))
             self.screen.blit(txt, (rect.x + 10, rect.y + 8))
 
         # Cursor
@@ -539,15 +540,16 @@ class StartMenu:
             if value:
                 val_surf = self.font_input.render(value, True, TEXT_WHITE)
                 cursor_x += val_surf.get_width()
-            pygame.draw.rect(self.screen, TEXT_GOLD, (cursor_x, rect.y + 8, 2, 24))
+            pygame.draw.rect(self.screen, NEON_CYAN, (cursor_x, rect.y + 8, 2, 24))
 
     def _draw_menu_btn(self, rect, label, color, hover_color, icon_name=""):
         mx, my = pygame.mouse.get_pos()
         hovered = rect.collidepoint(mx, my)
         c = hover_color if hovered else color
-        pygame.draw.rect(self.screen, c, rect, border_radius=6)
-        pygame.draw.rect(self.screen, BORDER, rect, 2, border_radius=6)
-        txt = self.font_md.render(label, True, TEXT_WHITE)
+        pygame.draw.rect(self.screen, c, rect, border_radius=8)
+        pygame.draw.rect(self.screen, BORDER, rect, 1, border_radius=8)
+        draw_pixel_corners(self.screen, rect, c, 2)
+        txt = self.font_md.render(label, True, (255, 255, 255))
         if icon_name:
             ico = icons.get(icon_name)
             total_w = 16 + 6 + txt.get_width()
@@ -569,17 +571,18 @@ class StartMenu:
 
         # Darken background
         overlay = pygame.Surface((self.sw, self.sh), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 160))
+        overlay.fill((0, 0, 0, 120))
         self.screen.blit(overlay, (0, 0))
 
-        # Panel
-        pygame.draw.rect(self.screen, (28, 26, 38),
+        # Panel (light theme)
+        pygame.draw.rect(self.screen, BG_PANEL,
                          (px, py, pw, ph), border_radius=10)
-        pygame.draw.rect(self.screen, ACCENT,
+        pygame.draw.rect(self.screen, NEON_YELLOW,
                          (px, py, pw, ph), 2, border_radius=10)
+        draw_pixel_corners(self.screen, pygame.Rect(px, py, pw, ph), NEON_YELLOW, 3)
 
         # Title with trophy icons
-        title = self.font_md.render("LEADERBOARD", True, TEXT_GOLD)
+        title = self.font_md.render("LEADERBOARD", True, NEON_YELLOW)
         tr = title.get_rect(center=(cx, py + 24))
         self.screen.blit(title, tr)
         trophy_ico = icons.get_scaled("trophy", 16)
@@ -607,7 +610,7 @@ class StartMenu:
             self.screen.blit(name_txt, (px + 60, y + 2))
 
             score_str = f"{entry['score']:,.0f}"
-            score_txt = self.font_sm.render(score_str, True, TEXT_GOLD)
+            score_txt = self.font_sm.render(score_str, True, NEON_YELLOW)
             self.screen.blit(score_txt, (px + pw - score_txt.get_width() - 16, y + 2))
 
             y += 30
@@ -617,5 +620,5 @@ class StartMenu:
             self.screen.blit(no_data, no_data.get_rect(center=(cx, py + ph // 2)))
 
         # Close hint
-        hint = self.font_sm.render("Click LEADERBOARD again to close", True, (80, 80, 100))
+        hint = self.font_sm.render("Click LEADERBOARD again to close", True, TEXT_GRAY)
         self.screen.blit(hint, hint.get_rect(center=(cx, py + ph - 20)))
