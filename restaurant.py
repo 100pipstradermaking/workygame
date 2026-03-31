@@ -579,6 +579,14 @@ class Restaurant:
         self._paint_lvl = -1
         self._music_lvl = -1
         self._ac_lvl = -1
+        self._oven_lvl = -1
+        self._fridge_lvl = -1
+        self._fryer_lvl = -1
+        self._prep_lvl = -1
+        self._ads_lvl = -1
+        self._delivery_lvl = -1
+        self._franchise_lvl = -1
+        self._vip_lvl = -1
         self._attractiveness = 0
         self._community_rating = 0.0
         self._community_votes = 0
@@ -640,11 +648,23 @@ class Restaurant:
         paint_lvl = shop_item_level(player, "design_paint")
         music_lvl = shop_item_level(player, "design_music")
         ac_lvl = shop_item_level(player, "design_ac")
+        oven_lvl = shop_item_level(player, "kitchen_oven")
+        fridge_lvl = shop_item_level(player, "kitchen_fridge")
+        fryer_lvl = shop_item_level(player, "kitchen_fryer")
+        prep_lvl = shop_item_level(player, "kitchen_prep")
+        ads_lvl = shop_item_level(player, "biz_ads")
+        delivery_lvl = shop_item_level(player, "biz_delivery")
+        franchise_lvl = shop_item_level(player, "biz_franchise")
+        vip_lvl = shop_item_level(player, "biz_vip")
 
         # Only rebuild decorations if anything changed
         changed = (seat_lvl != self._seat_lvl or neon_lvl != self._neon_lvl or
                    floor_lvl != self._floor_lvl or paint_lvl != self._paint_lvl or
-                   music_lvl != self._music_lvl or ac_lvl != self._ac_lvl)
+                   music_lvl != self._music_lvl or ac_lvl != self._ac_lvl or
+                   oven_lvl != self._oven_lvl or fridge_lvl != self._fridge_lvl or
+                   fryer_lvl != self._fryer_lvl or prep_lvl != self._prep_lvl or
+                   ads_lvl != self._ads_lvl or delivery_lvl != self._delivery_lvl or
+                   franchise_lvl != self._franchise_lvl or vip_lvl != self._vip_lvl)
 
         self._seat_lvl = seat_lvl
         self._neon_lvl = neon_lvl
@@ -652,6 +672,14 @@ class Restaurant:
         self._paint_lvl = paint_lvl
         self._music_lvl = music_lvl
         self._ac_lvl = ac_lvl
+        self._oven_lvl = oven_lvl
+        self._fridge_lvl = fridge_lvl
+        self._fryer_lvl = fryer_lvl
+        self._prep_lvl = prep_lvl
+        self._ads_lvl = ads_lvl
+        self._delivery_lvl = delivery_lvl
+        self._franchise_lvl = franchise_lvl
+        self._vip_lvl = vip_lvl
         self._attractiveness = get_attractiveness(player)
 
         if not changed:
@@ -813,6 +841,98 @@ class Restaurant:
                 "w": 1, "h": 1,
                 "color": (60, 55, 70),
             })
+
+        # ─ KITCHEN EQUIPMENT ─────────────────────────────────
+        # Brick Oven — appears right of grill station
+        if oven_lvl > 0:
+            glow = min(255, 80 + oven_lvl * 15)
+            self.decorations.append({
+                "type": "oven",
+                "x": 20, "y": 2,
+                "w": 3, "h": 3,
+                "color": (180, 80, 40),
+                "level": oven_lvl,
+                "glow": glow,
+            })
+
+        # Walk-in Fridge — appears below storage
+        if fridge_lvl > 0:
+            self.decorations.append({
+                "type": "fridge",
+                "x": 3, "y": 7,
+                "w": 3, "h": 3,
+                "color": (160, 200, 230),
+                "level": fridge_lvl,
+            })
+
+        # Deep Fryer — appears below grill
+        if fryer_lvl > 0:
+            self.decorations.append({
+                "type": "fryer",
+                "x": 14, "y": 6,
+                "w": 3, "h": 2,
+                "color": (200, 170, 80),
+                "level": fryer_lvl,
+            })
+
+        # Prep Station — appears left of assembly
+        if prep_lvl > 0:
+            self.decorations.append({
+                "type": "prep_station",
+                "x": 3, "y": 11,
+                "w": 4, "h": 2,
+                "color": (180, 200, 180),
+                "level": prep_lvl,
+            })
+
+        # ─ BUSINESS EQUIPMENT ────────────────────────────────
+        # Billboard Ad — posters on wall
+        if ads_lvl > 0:
+            ad_positions = [(7, 0), (26, 0), (0, 12), (0, 6)]
+            for i in range(min(ads_lvl, len(ad_positions))):
+                ax, ay = ad_positions[i]
+                self.decorations.append({
+                    "type": "billboard",
+                    "x": ax, "y": ay,
+                    "w": 3 if ay == 0 else 1,
+                    "h": 1 if ay == 0 else 3,
+                    "color": (255, 100, 100),
+                    "level": ads_lvl,
+                })
+
+        # Delivery — motorbike near door
+        if delivery_lvl > 0:
+            self.decorations.append({
+                "type": "delivery",
+                "x": 20, "y": 23,
+                "w": 3, "h": 2,
+                "color": (100, 200, 100),
+                "level": delivery_lvl,
+            })
+
+        # Franchise License — certificate on wall
+        if franchise_lvl > 0:
+            self.decorations.append({
+                "type": "franchise",
+                "x": 15, "y": 0,
+                "w": 3, "h": 1,
+                "color": (200, 180, 100),
+                "level": franchise_lvl,
+            })
+
+        # VIP Lounge — premium seating area
+        if vip_lvl > 0:
+            vip_count = min(vip_lvl, 3)
+            vip_positions = [(27, 3), (27, 9), (27, 15)]
+            for i in range(vip_count):
+                vx, vy = vip_positions[i]
+                self.decorations.append({
+                    "type": "vip_table",
+                    "x": vx, "y": vy,
+                    "w": 4, "h": 3,
+                    "color": (180, 140, 80),
+                    "level": vip_lvl,
+                })
 
     def sync_workers(self, workers: list):
         """Sync worker sprites with actual worker list."""
@@ -1199,6 +1319,30 @@ class Restaurant:
             elif dec["type"] == "speaker":
                 self._draw_speaker(surf, x, y, w, h)
 
+            elif dec["type"] == "oven":
+                self._draw_oven(surf, x, y, w, h, dec)
+
+            elif dec["type"] == "fridge":
+                self._draw_fridge(surf, x, y, w, h)
+
+            elif dec["type"] == "fryer":
+                self._draw_fryer(surf, x, y, w, h)
+
+            elif dec["type"] == "prep_station":
+                self._draw_prep_station(surf, x, y, w, h)
+
+            elif dec["type"] == "billboard":
+                self._draw_billboard(surf, x, y, w, h, dec)
+
+            elif dec["type"] == "delivery":
+                self._draw_delivery(surf, x, y, w, h)
+
+            elif dec["type"] == "franchise":
+                self._draw_franchise(surf, x, y, w, h)
+
+            elif dec["type"] == "vip_table":
+                self._draw_vip_table(surf, x, y, w, h, dec)
+
     def _draw_neon(self, surf, x, y, w, h, dec):
         """Draw a glowing neon sign on the wall."""
         r, g, b = dec["color"]
@@ -1277,6 +1421,187 @@ class Restaurant:
             wave = int(2 * math.sin(self._anim_t * 6))
             pygame.draw.arc(surf, (150, 130, 200),
                             (cx + 3, cy - 4 + wave, 6, 8), -0.5, 0.5, 1)
+
+    def _draw_oven(self, surf, x, y, w, h, dec):
+        """Draw a brick oven with fire glow."""
+        c = dec["color"]
+        # Brick body
+        pygame.draw.rect(surf, c, (x, y, w, h))
+        pygame.draw.rect(surf, (max(0, c[0]-30), max(0, c[1]-20), max(0, c[2]-15)), (x, y, w, h), 1)
+        # Brick lines
+        for row in range(0, h, 6):
+            offset = 4 if (row // 6) % 2 else 0
+            for col in range(offset, w, 8):
+                pygame.draw.rect(surf, (max(0, c[0]-20), max(0, c[1]-15), max(0, c[2]-10)),
+                                 (x + col, y + row, min(8, w - col), 6), 1)
+        # Oven opening (dark)
+        ox_ = x + w // 4
+        oy_ = y + h // 2
+        ow = w // 2
+        oh = h // 3
+        pygame.draw.rect(surf, (30, 20, 15), (ox_, oy_, ow, oh))
+        pygame.draw.rect(surf, (60, 40, 25), (ox_, oy_, ow, oh), 1)
+        # Fire glow
+        glow_lvl = dec.get("glow", 1)
+        pulse = 0.6 + 0.4 * math.sin(self._anim_t * 3.5)
+        fire_alpha = int(min(255, 60 + 40 * glow_lvl * pulse))
+        glow_s = pygame.Surface((ow - 2, oh - 2), pygame.SRCALPHA)
+        glow_s.fill((255, 120, 30, fire_alpha))
+        surf.blit(glow_s, (ox_ + 1, oy_ + 1))
+        # Flame flickers
+        for i in range(2):
+            fx = ox_ + ow // 3 + i * (ow // 3)
+            fy = oy_ + oh - 4 - int(3 * math.sin(self._anim_t * 5 + i * 2))
+            pygame.draw.rect(surf, (255, 200, 50), (fx, fy, 3, 4))
+
+    def _draw_fridge(self, surf, x, y, w, h):
+        """Draw a walk-in fridge / cooler."""
+        # Body
+        pygame.draw.rect(surf, (160, 200, 230), (x, y, w, h))
+        pygame.draw.rect(surf, (120, 160, 200), (x, y, w, h), 1)
+        # Door split line
+        mx = x + w // 2
+        pygame.draw.line(surf, (100, 140, 180), (mx, y + 2), (mx, y + h - 2), 1)
+        # Handle dots
+        pygame.draw.rect(surf, (180, 200, 220), (mx - 3, y + h // 2 - 1, 2, 3))
+        pygame.draw.rect(surf, (180, 200, 220), (mx + 1, y + h // 2 - 1, 2, 3))
+        # Frost effect
+        frost_alpha = int(30 + 20 * math.sin(self._anim_t * 1.5))
+        fs = pygame.Surface((w - 4, 4), pygame.SRCALPHA)
+        fs.fill((200, 230, 255, max(0, frost_alpha)))
+        surf.blit(fs, (x + 2, y + 2))
+        # Temperature indicator
+        pygame.draw.rect(surf, (50, 150, 255), (x + 3, y + h - 6, 4, 4))
+        pygame.draw.rect(surf, (30, 120, 220), (x + 3, y + h - 6, 4, 4), 1)
+
+    def _draw_fryer(self, surf, x, y, w, h):
+        """Draw a deep fryer with bubbling oil."""
+        # Body
+        pygame.draw.rect(surf, (180, 170, 140), (x, y, w, h))
+        pygame.draw.rect(surf, (140, 130, 100), (x, y, w, h), 1)
+        # Oil basin
+        bx = x + 3
+        by = y + 3
+        bw = w - 6
+        bh = h - 6
+        pygame.draw.rect(surf, (200, 170, 80), (bx, by, bw, bh))
+        # Oil bubbles
+        for i in range(3):
+            bub_x = bx + 4 + i * (bw // 3)
+            bub_y = by + 2 + int(2 * math.sin(self._anim_t * 4 + i * 1.5))
+            pygame.draw.circle(surf, (220, 190, 100), (bub_x, bub_y), 2)
+            pygame.draw.circle(surf, (240, 210, 120), (bub_x, bub_y), 1)
+        # Steam wisps
+        for i in range(2):
+            sx = bx + bw // 3 + i * (bw // 3)
+            sy = y - 2 - int((self._anim_t * 12 + i * 8) % 10)
+            alpha = max(0, 60 - int((self._anim_t * 12 + i * 8) % 10) * 6)
+            if alpha > 0:
+                ss = pygame.Surface((3, 2), pygame.SRCALPHA)
+                ss.fill((200, 200, 200, alpha))
+                surf.blit(ss, (sx, sy))
+
+    def _draw_prep_station(self, surf, x, y, w, h):
+        """Draw a prep / cutting station."""
+        # Counter surface
+        c = (180, 200, 180)
+        pygame.draw.rect(surf, c, (x, y, w, h))
+        pygame.draw.rect(surf, (140, 160, 140), (x, y, w, h), 1)
+        # Cutting board
+        pygame.draw.rect(surf, (210, 180, 130), (x + 4, y + 3, w // 2 - 2, h - 6))
+        pygame.draw.rect(surf, (180, 150, 100), (x + 4, y + 3, w // 2 - 2, h - 6), 1)
+        # Knife
+        kx = x + w // 2 + 4
+        pygame.draw.rect(surf, (180, 180, 190), (kx, y + 4, 2, h - 8))  # blade
+        pygame.draw.rect(surf, (100, 70, 40), (kx - 1, y + h - 6, 4, 4))  # handle
+        # Veggie bits
+        pygame.draw.rect(surf, (200, 60, 40), (x + 6, y + 5, 3, 3))  # tomato
+        pygame.draw.rect(surf, (80, 180, 60), (x + 10, y + 6, 3, 2))  # lettuce
+
+    def _draw_billboard(self, surf, x, y, w, h, dec):
+        """Draw an advertising billboard / poster."""
+        c = dec["color"]
+        # Frame
+        pygame.draw.rect(surf, (100, 85, 60), (x - 1, y - 1, w + 2, h + 2))
+        # Background
+        pygame.draw.rect(surf, c, (x, y, w, h))
+        # Diagonal stripe
+        sc = (min(255, c[0] + 40), min(255, c[1] + 30), min(255, c[2] + 20))
+        pygame.draw.line(surf, sc, (x + 2, y + h - 2), (x + w - 2, y + 2), 2)
+        # "AD" text
+        font = pygame.font.SysFont("Consolas", max(7, min(10, w // 3)))
+        txt = font.render("AD", True, (255, 255, 255))
+        surf.blit(txt, txt.get_rect(center=(x + w // 2, y + h // 2)))
+
+    def _draw_delivery(self, surf, x, y, w, h):
+        """Draw a delivery motorbike / scooter."""
+        # Wheels
+        pygame.draw.circle(surf, (50, 50, 50), (x + 6, y + h - 4), 4)
+        pygame.draw.circle(surf, (50, 50, 50), (x + w - 6, y + h - 4), 4)
+        pygame.draw.circle(surf, (80, 80, 80), (x + 6, y + h - 4), 2)
+        pygame.draw.circle(surf, (80, 80, 80), (x + w - 6, y + h - 4), 2)
+        # Body
+        pygame.draw.rect(surf, (100, 200, 100), (x + 4, y + 4, w - 8, h // 2))
+        pygame.draw.rect(surf, (70, 170, 70), (x + 4, y + 4, w - 8, h // 2), 1)
+        # Delivery box on back
+        bx_ = x + w - 14
+        pygame.draw.rect(surf, (220, 180, 100), (bx_, y + 1, 12, h // 2 + 2))
+        pygame.draw.rect(surf, (190, 150, 70), (bx_, y + 1, 12, h // 2 + 2), 1)
+        # Handlebar
+        pygame.draw.rect(surf, (60, 60, 60), (x + 3, y + 3, 3, 5))
+
+    def _draw_franchise(self, surf, x, y, w, h):
+        """Draw a framed franchise certificate on the wall."""
+        # Gold frame
+        pygame.draw.rect(surf, (200, 180, 100), (x - 1, y - 1, w + 2, h + 2))
+        pygame.draw.rect(surf, (170, 150, 70), (x - 1, y - 1, w + 2, h + 2), 1)
+        # Paper
+        pygame.draw.rect(surf, (255, 250, 235), (x + 1, y + 1, w - 2, h - 2))
+        # Seal
+        cx = x + w // 2
+        cy = y + h // 2
+        pygame.draw.circle(surf, (200, 50, 50), (cx, cy), 3)
+        pygame.draw.circle(surf, (180, 30, 30), (cx, cy), 3, 1)
+        # Lines (text hint)
+        pygame.draw.line(surf, (180, 170, 150), (x + 4, y + 2), (x + w - 4, y + 2), 1)
+        pygame.draw.line(surf, (180, 170, 150), (x + 6, y + h - 3), (x + w - 6, y + h - 3), 1)
+
+    def _draw_vip_table(self, surf, x, y, w, h, dec):
+        """Draw a premium VIP table with golden accents."""
+        c = dec["color"]
+        # Shadow
+        shadow = pygame.Surface((w, h), pygame.SRCALPHA)
+        shadow.fill((0, 0, 0, 30))
+        surf.blit(shadow, (x + 2, y + 2))
+        # Table body (golden)
+        pygame.draw.rect(surf, c, (x, y + 4, w, h - 8))
+        pygame.draw.rect(surf, (min(255, c[0]+20), min(255, c[1]+20), min(255, c[2]+10)),
+                         (x + 1, y + 4, w - 2, 2))  # highlight
+        pygame.draw.rect(surf, (max(0, c[0]-30), max(0, c[1]-30), max(0, c[2]-20)),
+                         (x, y + 4, w, h - 8), 1)
+        # Velvet cushion chairs (left and right)
+        chair_c = (140, 30, 50)  # burgundy velvet
+        chair_s = (110, 20, 35)
+        # Left chair
+        pygame.draw.rect(surf, chair_c, (x + 1, y, 5, 4))
+        pygame.draw.rect(surf, chair_s, (x + 1, y, 5, 4), 1)
+        # Right chair
+        pygame.draw.rect(surf, chair_c, (x + w - 6, y, 5, 4))
+        pygame.draw.rect(surf, chair_s, (x + w - 6, y, 5, 4), 1)
+        # Bottom chairs
+        pygame.draw.rect(surf, chair_c, (x + 1, y + h - 4, 5, 4))
+        pygame.draw.rect(surf, chair_s, (x + 1, y + h - 4, 5, 4), 1)
+        pygame.draw.rect(surf, chair_c, (x + w - 6, y + h - 4, 5, 4))
+        pygame.draw.rect(surf, chair_s, (x + w - 6, y + h - 4, 5, 4), 1)
+        # Candle in center
+        cx = x + w // 2
+        cy = y + h // 2
+        pygame.draw.rect(surf, (240, 230, 200), (cx - 1, cy - 2, 2, 4))
+        # Flame flicker
+        flicker = int(2 * math.sin(self._anim_t * 6))
+        pygame.draw.rect(surf, (255, 200, 50), (cx - 1, cy - 3 + flicker, 2, 2))
+        # Star/VIP marker
+        pygame.draw.circle(surf, (255, 215, 0), (x + w - 3, y + 2), 2)
 
     def _draw_music_particles(self, surf, ox, oy):
         """Draw floating music note particles."""
