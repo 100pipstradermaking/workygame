@@ -113,26 +113,31 @@ class StartMenu:
         if self._fade_dir != 0:
             return None
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            cx = self.sw // 2
             # New Game button
-            btn_new = pygame.Rect(self.sw // 2 - 120, 400, 240, 50)
+            btn_new = pygame.Rect(cx - 130, 385, 260, 50)
             if btn_new.collidepoint(event.pos):
                 self._transition_to(MenuState.REGISTER)
                 return None
 
             # Continue button (only if save exists)
-            btn_cont = pygame.Rect(self.sw // 2 - 120, 465, 240, 50)
+            btn_cont = pygame.Rect(cx - 130, 445, 260, 50)
             if btn_cont.collidepoint(event.pos):
-                if os.path.exists("worky_save.json"):
+                from online import is_web, web_load
+                has_save = os.path.exists("worky_save.json")
+                if is_web():
+                    has_save = has_save or web_load("save") is not None
+                if has_save:
                     return "continue_game"
 
             # Leaderboard button
-            btn_lb = pygame.Rect(self.sw // 2 - 120, 530, 240, 50)
+            btn_lb = pygame.Rect(cx - 130, 505, 260, 50)
             if btn_lb.collidepoint(event.pos):
                 self._show_lb = not getattr(self, '_show_lb', False)
                 return None
 
             # Quit button
-            btn_quit = pygame.Rect(self.sw // 2 - 120, 595, 240, 50)
+            btn_quit = pygame.Rect(cx - 130, 565, 260, 50)
             if btn_quit.collidepoint(event.pos):
                 return "quit"
         return None
@@ -259,57 +264,47 @@ class StartMenu:
     def _draw_main_menu(self):
         cx = self.sw // 2
 
-        # Animated background particles
-        self._draw_particles()
+        # Animated background — darker kitchen ambience
+        self._draw_bg_scene()
 
-        # Logo
-        bob = math.sin(self.anim_frame * 0.15) * 4
-        title = self.font_title.render("WORKY", True, TEXT_GOLD)
-        tr = title.get_rect(center=(cx, 120 + bob))
-        # Smooth pulsing glow layers
-        glow_pulse = 0.5 + 0.5 * math.sin(self.anim_frame * 0.08)
-        for offset, alpha_base in [(4, 30), (2, 60)]:
-            glow_s = pygame.Surface(
-                (tr.w + offset * 4, tr.h + offset * 4), pygame.SRCALPHA)
-            glow_t = self.font_title.render("WORKY", True,
-                (255, 180, 50, int(alpha_base * glow_pulse)))
-            glow_s.blit(glow_t, (offset * 2, offset * 2))
-            self.screen.blit(glow_s, (tr.x - offset * 2, tr.y - offset * 2))
-        self.screen.blit(title, tr)
+        # ── Pixel banner: WORKY BURGERS FARM ──
+        bob = math.sin(self.anim_frame * 0.12) * 3
+        self._draw_pixel_banner(cx, 40 + int(bob))
 
-        # Subtitle
+        # ── Subtitle ──
         sub = self.font_sub.render("Burger Economy Simulator", True, TEXT_GRAY)
-        self.screen.blit(sub, sub.get_rect(center=(cx, 170)))
+        sub_rect = sub.get_rect(center=(cx, 188))
+        self.screen.blit(sub, sub_rect)
 
-        # Burger icon next to subtitle
+        # Burger icons flanking subtitle
         bi = icons.get_scaled("burger", 20)
-        sr = sub.get_rect(center=(cx, 170))
-        self.screen.blit(bi, (sr.x - 24, 162))
-        self.screen.blit(bi, (sr.right + 6, 162))
+        self.screen.blit(bi, (sub_rect.x - 26, 180))
+        self.screen.blit(bi, (sub_rect.right + 8, 180))
 
-        # Mascot
-        mascot_y = 280 + math.sin(self.anim_frame * 0.2) * 3
-        self.mascot.draw(self.screen, cx, int(mascot_y),
-                         "down", self.anim_frame, "idle", "legendary")
+        # ── Animated mascots (two workers on each side of a pixel grill) ──
+        self._draw_grill_scene(cx, 270)
 
         # Tagline
         tagline = self.font_sm.render(
             '"Salute the people who keep this world running"', True, TEXT_GRAY)
-        self.screen.blit(tagline, tagline.get_rect(center=(cx, 340)))
+        self.screen.blit(tagline, tagline.get_rect(center=(cx, 350)))
 
-        # Buttons
-        self._draw_menu_btn(pygame.Rect(cx - 120, 400, 240, 50),
+        # ── Buttons ──
+        self._draw_menu_btn(pygame.Rect(cx - 130, 385, 260, 50),
                             "NEW GAME", BTN_PRIMARY, BTN_PRIMARY_H, "play")
 
         has_save = os.path.exists("worky_save.json")
-        self._draw_menu_btn(pygame.Rect(cx - 120, 465, 240, 50),
+        from online import is_web, web_load
+        if is_web():
+            has_save = has_save or web_load("save") is not None
+        self._draw_menu_btn(pygame.Rect(cx - 130, 445, 260, 50),
                             "CONTINUE", BTN_SECONDARY if has_save else BTN_DISABLED,
                             BTN_SECONDARY_H if has_save else BTN_DISABLED, "continue")
 
-        self._draw_menu_btn(pygame.Rect(cx - 120, 530, 240, 50),
+        self._draw_menu_btn(pygame.Rect(cx - 130, 505, 260, 50),
                             "LEADERBOARD", (50, 90, 160), (70, 120, 200), "leaderboard")
 
-        self._draw_menu_btn(pygame.Rect(cx - 120, 595, 240, 50),
+        self._draw_menu_btn(pygame.Rect(cx - 130, 565, 260, 50),
                             "QUIT", (100, 50, 50), (140, 70, 70), "quit")
 
         # Show leaderboard overlay if toggled
@@ -317,26 +312,156 @@ class StartMenu:
             self._draw_menu_leaderboard()
 
         # Version
-        ver = self.font_sm.render("v0.1.0 MVP", True, (60, 60, 70))
+        ver = self.font_sm.render("v0.2.0", True, (60, 60, 70))
         self.screen.blit(ver, (10, self.sh - 20))
 
         # Website
         site = self.font_sm.render("workyworker.xyz", True, (80, 80, 100))
         self.screen.blit(site, (self.sw - site.get_width() - 10, self.sh - 20))
 
-    def _draw_particles(self):
-        """Floating burger/coin particles in background."""
-        for i in range(15):
-            phase = i * 1.7 + self.anim_frame * 0.03
-            px = int((self.sw * 0.1) + (i * 61) % self.sw)
-            py = int((self.sh * 0.5 + math.sin(phase) * 200) % self.sh)
-            alpha = int(30 + 20 * math.sin(phase * 2))
-            size = 3 + i % 3
+    # ── Pixel banner renderer ────────────────────────────────
+    _BANNER_FONT = {
+        'W': ['#...#','#...#','#.#.#','#.#.#','#.#.#','##.##','#...#'],
+        'O': ['.###.','#...#','#...#','#...#','#...#','#...#','.###.'],
+        'R': ['####.','#...#','#...#','####.','#.#..','#..#.','#...#'],
+        'K': ['#...#','#..#.','#.#..','##...','#.#..','#..#.','#...#'],
+        'Y': ['#...#','#...#','.#.#.','..#..','..#..','..#..','..#..'],
+        'B': ['####.','#...#','#...#','####.','#...#','#...#','####.'],
+        'U': ['#...#','#...#','#...#','#...#','#...#','#...#','.###.'],
+        'G': ['.###.','#....','#....','#.##.','#...#','#...#','.###.'],
+        'E': ['#####','#....','#....','####.','#....','#....','#####'],
+        'S': ['.####','#....','#....','.###.','....#','....#','####.'],
+        'F': ['#####','#....','#....','####.','#....','#....','#....'],
+        'A': ['.###.','#...#','#...#','#####','#...#','#...#','#...#'],
+        'M': ['#...#','##.##','#.#.#','#.#.#','#...#','#...#','#...#'],
+        ' ': ['.....','.....','.....','.....','.....','.....','.....',],
+    }
 
-            color = (255, 200, 50, alpha) if i % 2 == 0 else (200, 100, 40, alpha)
+    def _draw_pixel_banner(self, cx: int, top_y: int):
+        """Draw WORKY / BURGERS FARM pixel title with glow and shading."""
+        lines = [("WORKY", (255, 200, 50), (180, 130, 20)),
+                 ("BURGERS FARM", (240, 100, 40), (170, 55, 20))]
+        PX = 3
+        LW = 5; LH = 7; GAP = 2
+        LINE_GAP = 14
+
+        for li, (word, color, outline) in enumerate(lines):
+            word_w = len(word) * (LW + GAP) * PX - GAP * PX
+            sx = cx - word_w // 2
+            by = top_y + li * (LH * PX + LINE_GAP)
+            hi = tuple(min(255, c + 50) for c in color)
+
+            for ci, ch in enumerate(word):
+                bitmap = self._BANNER_FONT.get(ch, self._BANNER_FONT[' '])
+                lx = sx + ci * (LW + GAP) * PX
+                for row in range(LH):
+                    for col in range(LW):
+                        if bitmap[row][col] == '#':
+                            px_x = lx + col * PX
+                            px_y = by + row * PX
+                            # Shadow
+                            pygame.draw.rect(self.screen, (0, 0, 0, 40),
+                                             (px_x + 1, px_y + 1, PX, PX))
+                            # Outline
+                            pygame.draw.rect(self.screen, outline,
+                                             (px_x - 1, px_y - 1, PX + 2, PX + 2))
+                            # Main
+                            pygame.draw.rect(self.screen, color,
+                                             (px_x, px_y, PX, PX))
+                            # Highlight top edge
+                            if row == 0 or bitmap[row - 1][col] == '.':
+                                pygame.draw.rect(self.screen, hi,
+                                                 (px_x, px_y, PX, 1))
+
+    def _draw_bg_scene(self):
+        """Animated kitchen background with floating particles and tiles."""
+        # Tile floor bottom
+        floor_y = self.sh - 60
+        for gx in range(0, self.sw, 24):
+            shade = 20 + (gx // 24 % 2) * 6
+            pygame.draw.rect(self.screen, (shade, shade - 2, shade + 10),
+                             (gx, floor_y, 24, self.sh - floor_y))
+        pygame.draw.line(self.screen, (45, 40, 60),
+                         (0, floor_y), (self.sw, floor_y), 2)
+
+        # Floating ingredient particles
+        for i in range(20):
+            phase = i * 2.1 + self.anim_frame * 0.025
+            px = int((i * 47 + 13) % self.sw)
+            py = int((self.sh * 0.4 + math.sin(phase) * 250) % self.sh)
+            alpha = int(25 + 20 * math.sin(phase * 1.7))
+            size = 3 + i % 4
+
+            if i % 4 == 0:
+                col = (255, 200, 50)     # gold (coin)
+            elif i % 4 == 1:
+                col = (200, 100, 40)     # brown (bun)
+            elif i % 4 == 2:
+                col = (80, 180, 60)      # green (lettuce)
+            else:
+                col = (220, 60, 40)      # red (tomato)
+
             s = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
-            pygame.draw.circle(s, (*color[:3], min(255, alpha)), (size, size), size)
+            pygame.draw.circle(s, (*col, min(255, alpha)), (size, size), size)
             self.screen.blit(s, (px - size, py - size))
+
+    def _draw_grill_scene(self, cx: int, cy: int):
+        """Draw animated pixel grill with mascots on each side."""
+        # Grill body
+        gw, gh = 80, 24
+        gx, gy = cx - gw // 2, cy
+        pygame.draw.rect(self.screen, (60, 55, 65), (gx, gy, gw, gh),
+                         border_radius=3)
+        pygame.draw.rect(self.screen, (90, 85, 100), (gx, gy, gw, gh),
+                         1, border_radius=3)
+        # Grate lines
+        for lx in range(gx + 6, gx + gw - 6, 8):
+            pygame.draw.line(self.screen, (80, 75, 90),
+                             (lx, gy + 4), (lx, gy + gh - 4), 1)
+
+        # Flames under grill
+        for fi in range(5):
+            fx = gx + 10 + fi * 15
+            fy = gy + gh
+            flame_h = 5 + int(3 * math.sin(self.anim_frame * 0.3 + fi * 1.5))
+            # Outer flame
+            pygame.draw.rect(self.screen, (220, 80, 20),
+                             (fx, fy, 6, flame_h))
+            # Inner flame
+            pygame.draw.rect(self.screen, (255, 200, 40),
+                             (fx + 1, fy, 4, max(1, flame_h - 2)))
+
+        # Patties on grill
+        for pi in range(3):
+            px = gx + 12 + pi * 22
+            py_off = int(math.sin(self.anim_frame * 0.15 + pi) * 1)
+            pygame.draw.ellipse(self.screen, (130, 65, 30),
+                                (px, gy + 6 + py_off, 16, 8))
+            pygame.draw.ellipse(self.screen, (160, 90, 45),
+                                (px + 2, gy + 6 + py_off, 12, 4))
+
+        # Smoke puffs
+        for si in range(4):
+            sp = si * 1.8 + self.anim_frame * 0.08
+            sx = cx - 20 + si * 15 + int(math.sin(sp * 2) * 6)
+            sy = gy - 8 - int((sp * 10) % 30)
+            sa = max(0, 50 - int((sp * 10) % 30) * 2)
+            if sa > 0:
+                smoke_s = pygame.Surface((10, 10), pygame.SRCALPHA)
+                pygame.draw.circle(smoke_s, (160, 160, 170, sa), (5, 5), 4)
+                self.screen.blit(smoke_s, (sx, sy))
+
+        # Mascot left (burger chef, facing right)
+        mascot_bob_l = int(math.sin(self.anim_frame * 0.2) * 2)
+        self.mascot.draw(self.screen, cx - 65, cy + 5 + mascot_bob_l,
+                         "right", self.anim_frame, "working", "legendary")
+
+        # Second mascot right (facing left)
+        if not hasattr(self, '_mascot2'):
+            self._mascot2 = WorkySpriteRenderer("barista", (200, 200, 200))
+        mascot_bob_r = int(math.sin(self.anim_frame * 0.2 + 1.5) * 2)
+        self._mascot2.draw(self.screen, cx + 65, cy + 5 + mascot_bob_r,
+                           "left", self.anim_frame, "working", "epic")
 
     # ── Registration drawing ─────────────────────────────────
     def _draw_register(self):

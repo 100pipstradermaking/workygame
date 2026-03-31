@@ -20,14 +20,31 @@ from upgrades import (
     get_speed_multiplier, get_efficiency_multiplier,
     get_income_multiplier, get_event_interval_reduction,
 )
-from ui import UI, SCREEN_W, SCREEN_H, PANEL_W, REST_W, REST_H, BAR_H
 from restaurant import Restaurant
 from save_system import SaveSystem
 from menu import StartMenu, MenuState
-from shop import ShopUI, get_total_shop_multiplier, get_seat_count
+from shop import get_total_shop_multiplier, get_seat_count
 from leaderboard import LeaderboardOverlay, submit_score, get_restaurant_rating
+from loading import LoadingScreen
+from game_screen import GameScreen, SCREEN_W, SCREEN_H
 
 FPS = 60
+
+
+async def run_loading(screen, clock):
+    """Run the animated loading/splash screen. Returns when user clicks."""
+    loader = LoadingScreen(screen)
+    while not loader.finished:
+        dt = clock.tick(FPS) / 1000.0
+        loader.update(dt)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            loader.handle_event(event)
+        loader.draw()
+        pygame.display.flip()
+        await asyncio.sleep(0)
 
 
 def init_new_player(player: Player, reg_data: dict):
@@ -71,8 +88,7 @@ async def run_game(screen, clock, mode, reg_data, save_sys):
     player = Player()
     economy = Economy()
     restaurant = Restaurant()
-    ui = UI(screen)
-    shop_ui = ShopUI(SCREEN_W - PANEL_W, PANEL_W, SCREEN_H)
+    game_ui = GameScreen(screen)
     leaderboard = LeaderboardOverlay(SCREEN_W, SCREEN_H)
 
     if mode == "new" and reg_data:
@@ -82,7 +98,6 @@ async def run_game(screen, clock, mode, reg_data, save_sys):
 
     restaurant.sync_workers(player.workers)
 
-    show_shop = True  # start with shop visible on right panel
     rating_timer = 0.0  # throttle rating file reads
 
     running = True
@@ -101,46 +116,18 @@ async def run_game(screen, clock, mode, reg_data, save_sys):
             if leaderboard.handle_event(event):
                 continue
 
-            # Bottom bar buttons
-            bar_action = ui.handle_bar_event(event)
-            if bar_action == "exit_to_menu":
+            # Game screen events (top bar, bottom nav, content)
+            action = game_ui.handle_event(event, player)
+            if action == "exit_to_menu":
                 save_sys.save(player, economy, restaurant)
                 submit_score(player, restaurant)
                 return "menu"
-            elif bar_action == "toggle_leaderboard":
+            elif action == "toggle_leaderboard":
                 submit_score(player, restaurant)
                 leaderboard.toggle(player.player_name)
                 continue
-            elif bar_action == "toggle_shop":
-                show_shop = not show_shop
-                continue
-
-            # Keyboard shortcuts
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_s:
-                    show_shop = not show_shop
-                    continue
-                elif event.key == pygame.K_l:
-                    submit_score(player, restaurant)
-                    leaderboard.toggle(player.player_name)
-                    continue
-                elif event.key == pygame.K_ESCAPE:
-                    save_sys.save(player, economy, restaurant)
-                    submit_score(player, restaurant)
-                    return "menu"
-
-            # Shop panel events
-            if show_shop:
-                action = shop_ui.handle_event(event, player)
-                if action == "hired":
-                    restaurant.sync_workers(player.workers)
-                # Prestige via shop
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    for rect, atype, aid in shop_ui._buttons:
-                        if rect.collidepoint(event.pos) and aid == "__prestige__":
-                            if player.prestige():
-                                restaurant.sync_workers(player.workers)
-                            break
+            elif action in ("hired", "prestige"):
+                restaurant.sync_workers(player.workers)
 
         # ── Apply upgrade effects to economy settings ────────
         economy.event_check_interval = max(1.0, 5.0 - get_event_interval_reduction(player))
@@ -174,40 +161,13 @@ async def run_game(screen, clock, mode, reg_data, save_sys):
         restaurant.update(dt)
 
         # ── UI update ────────────────────────────────────────
-        ui.update(dt)
-        shop_ui.update(dt)
+        game_ui.update(dt)
         leaderboard.update(dt)
 
         effective_ips = player.get_income_per_second() * spd * eff * inc * shop_mult
 
         # ── Render ───────────────────────────────────────────
-        screen.fill((22, 20, 32))
-
-        # Restaurant area (top-left, 640 × 480)
-        world_area = pygame.Rect(0, 0, REST_W, REST_H)
-        restaurant.draw(screen, world_area)
-
-        # Event popup inside restaurant area
-        ui.draw_event(economy)
-
-        # Bottom info bar (below restaurant, 640 × 240)
-        ui.draw_bottom_bar(player, economy, effective_ips, show_shop)
-
-        # Right panel: shop (full height 720)
-        if show_shop:
-            shop_ui.draw(screen, player)
-        else:
-            # Draw empty panel background
-            panel_rect = pygame.Rect(SCREEN_W - PANEL_W, 0, PANEL_W, SCREEN_H)
-            pygame.draw.rect(screen, (28, 26, 40), panel_rect)
-            pygame.draw.line(screen, (75, 70, 100),
-                             (SCREEN_W - PANEL_W, 0),
-                             (SCREEN_W - PANEL_W, SCREEN_H), 2)
-            # Show a hint
-            fnt = pygame.font.SysFont("Consolas", 16)
-            hint = fnt.render("Press S for Shop", True, (100, 100, 120))
-            screen.blit(hint, hint.get_rect(
-                center=(SCREEN_W - PANEL_W // 2, SCREEN_H // 2)))
+        game_ui.draw(player, economy, effective_ips, restaurant)
 
         # Leaderboard overlay (on top of everything)
         leaderboard.draw(screen)
@@ -226,9 +186,12 @@ async def run_game(screen, clock, mode, reg_data, save_sys):
 async def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
-    pygame.display.set_caption("WORKY — Burger Economy Simulator")
+    pygame.display.set_caption("WORKY — Burgers Farm")
     clock = pygame.time.Clock()
     save_sys = SaveSystem()
+
+    # Loading / splash screen
+    await run_loading(screen, clock)
 
     # Main loop: menu ↔ game
     while True:
