@@ -33,17 +33,30 @@ SABOTAGE_DEFS = {
 # Guild definitions
 GUILDS = [
     {"id": "grill_masters",  "name": "GRILL MASTERS",   "motto": "Fire & Flavor",
-     "color": (239, 68, 68),  "bonus_income": 0.05, "bonus_xp": 0.10},
+     "color": (239, 68, 68),  "bonus_income": 0.05, "bonus_xp": 0.10,
+     "members": 42, "level": 5, "created_by": "system"},
     {"id": "fry_nation",     "name": "FRY NATION",      "motto": "Golden & Crispy",
-     "color": (245, 158, 11), "bonus_income": 0.04, "bonus_xp": 0.12},
+     "color": (245, 158, 11), "bonus_income": 0.04, "bonus_xp": 0.12,
+     "members": 38, "level": 4, "created_by": "system"},
     {"id": "burger_lords",   "name": "BURGER LORDS",    "motto": "Stack It High",
-     "color": (139, 92, 246), "bonus_income": 0.06, "bonus_xp": 0.08},
+     "color": (139, 92, 246), "bonus_income": 0.06, "bonus_xp": 0.08,
+     "members": 56, "level": 7, "created_by": "system"},
     {"id": "chef_collective","name": "CHEF COLLECTIVE",  "motto": "Craft & Create",
-     "color": (34, 197, 94),  "bonus_income": 0.03, "bonus_xp": 0.15},
+     "color": (34, 197, 94),  "bonus_income": 0.03, "bonus_xp": 0.15,
+     "members": 29, "level": 3, "created_by": "system"},
     {"id": "flip_squad",     "name": "FLIP SQUAD",      "motto": "Speed & Style",
-     "color": (59, 130, 246), "bonus_income": 0.07, "bonus_xp": 0.06},
+     "color": (59, 130, 246), "bonus_income": 0.07, "bonus_xp": 0.06,
+     "members": 65, "level": 8, "created_by": "system"},
 ]
 GUILDS_BY_ID = {g["id"]: g for g in GUILDS}
+
+# Custom guild colors palette
+GUILD_COLORS = [
+    (239, 68, 68), (245, 158, 11), (139, 92, 246),
+    (34, 197, 94), (59, 130, 246), (236, 72, 153),
+    (249, 115, 22), (0, 206, 209), (220, 38, 38),
+    (16, 185, 129), (99, 102, 241), (244, 63, 94),
+]
 
 # Season config
 SEASON_NUMBER = 1
@@ -224,21 +237,52 @@ def get_sabotage_income_mult(player: Player) -> float:
 # ═══════════════════════════════════════════════════════════════
 #  Guild helpers
 # ═══════════════════════════════════════════════════════════════
+_GUILD_CREATE_COST = 500
+
+def create_guild(player: Player, name: str, color: tuple) -> bool:
+    """Create a custom guild. Costs coins. Player becomes leader."""
+    name = name.strip()
+    if not name or len(name) > 20:
+        return False
+    if player.guild_id:
+        return False
+    if player.coins < _GUILD_CREATE_COST:
+        return False
+    player.coins -= _GUILD_CREATE_COST
+    gid = "custom_" + name.lower().replace(" ", "_")
+    new_guild = {
+        "id": gid, "name": name.upper(), "motto": "Player Guild",
+        "color": color, "bonus_income": 0.04, "bonus_xp": 0.08,
+        "members": 1, "level": 1, "created_by": "player",
+    }
+    GUILDS.append(new_guild)
+    GUILDS_BY_ID[gid] = new_guild
+    player.guild_id = gid
+    player.guild_role = "leader"
+    player.guild_contribution = 0.0
+    return True
+
+
 def join_guild(player: Player, guild_id: str) -> bool:
     """Join a guild. Returns True if joined successfully."""
     if guild_id not in GUILDS_BY_ID:
         return False
     if player.guild_id:
         return False  # already in a guild
+    guild = GUILDS_BY_ID[guild_id]
     player.guild_id = guild_id
     player.guild_role = "member"
     player.guild_contribution = 0.0
+    guild["members"] = guild.get("members", 1) + 1
     return True
 
 
 def leave_guild(player: Player) -> bool:
     if not player.guild_id:
         return False
+    guild = GUILDS_BY_ID.get(player.guild_id)
+    if guild:
+        guild["members"] = max(0, guild.get("members", 1) - 1)
     player.guild_id = ""
     player.guild_role = "member"
     player.guild_contribution = 0.0

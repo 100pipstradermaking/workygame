@@ -12,12 +12,13 @@ from enum import IntEnum
 
 from player import Player
 from economy import (
-    Economy, SABOTAGE_DEFS, GUILDS, GUILDS_BY_ID,
+    Economy, SABOTAGE_DEFS, GUILDS, GUILDS_BY_ID, GUILD_COLORS,
     SEASON_REWARDS, SEASON_NUMBER, SEASON_NAME,
     execute_sabotage, get_sabotage_income_mult,
-    join_guild, leave_guild, contribute_to_guild,
+    create_guild, join_guild, leave_guild, contribute_to_guild,
     get_guild_income_bonus, get_guild_xp_bonus,
     get_season_progress, get_season_time_remaining, claim_season_reward,
+    _GUILD_CREATE_COST,
 )
 from worker import Worker, hire_cost, roll_rarity, RARITIES
 from upgrades import (
@@ -26,6 +27,8 @@ from upgrades import (
     get_hire_cost_discount, get_worker_upgrade_discount,
     get_sabotage_damage_reduction, get_sabotage_block_chance,
     get_sabotage_income_protection,
+    get_speed_multiplier, get_efficiency_multiplier,
+    get_income_multiplier,
 )
 from shop import (
     KITCHEN_ITEMS, DESIGN_ITEMS, BUSINESS_ITEMS, ALL_SHOP_ITEMS,
@@ -139,6 +142,11 @@ class GameScreen:
         # Notification popup
         self._notif_msg: str = ""
         self._notif_timer: float = 0.0
+
+        # Guild creation state
+        self._guild_creating: bool = False
+        self._guild_name_input: str = ""
+        self._guild_color_idx: int = 0
 
         # Nav button rects
         self._nav_rects: list[pygame.Rect] = []
@@ -281,6 +289,25 @@ class GameScreen:
                             self._notif_msg = f"Donated {amt:.0f}c to guild!"
                             self._notif_timer = 2.0
                         return "guild_donate"
+                    elif action_type == "guild_toggle_create":
+                        self._guild_creating = not self._guild_creating
+                        self._guild_name_input = ""
+                        return None
+                    elif action_type == "guild_color_pick":
+                        self._guild_color_idx = int(action_id)
+                        return None
+                    elif action_type == "guild_create_confirm":
+                        color = GUILD_COLORS[self._guild_color_idx % len(GUILD_COLORS)]
+                        if create_guild(player, self._guild_name_input, color):
+                            self._spawn_purchase_fx(mx, my)
+                            self._notif_msg = f"Created guild '{self._guild_name_input.upper()}'!"
+                            self._notif_timer = 2.5
+                            self._guild_creating = False
+                            self._guild_name_input = ""
+                        else:
+                            self._notif_msg = f"Need {_GUILD_CREATE_COST}c to create guild"
+                            self._notif_timer = 2.0
+                        return "guild_create"
                     elif action_type == "season_claim":
                         r = claim_season_reward(player, action_id)
                         if r:
@@ -302,6 +329,22 @@ class GameScreen:
 
         # Keyboard shortcuts
         if event.type == pygame.KEYDOWN:
+            # Guild name text input
+            if self._guild_creating and self.active_tab == Tab.GUILD:
+                if event.key == pygame.K_BACKSPACE:
+                    self._guild_name_input = self._guild_name_input[:-1]
+                    return None
+                elif event.key == pygame.K_ESCAPE:
+                    self._guild_creating = False
+                    self._guild_name_input = ""
+                    return None
+                elif event.key == pygame.K_RETURN:
+                    return None  # handled by confirm button
+                elif event.unicode and len(self._guild_name_input) < 20:
+                    ch = event.unicode
+                    if ch.isprintable() and ch not in ('\t', '\r', '\n'):
+                        self._guild_name_input += ch
+                    return None
             if event.key == pygame.K_ESCAPE:
                 return "exit_to_menu"
             if event.key == pygame.K_l:
@@ -373,14 +416,25 @@ class GameScreen:
             notif_font = get_font(13, bold=True)
             ntxt = notif_font.render(self._notif_msg, True, TEXT_WHITE)
             nw = ntxt.get_width() + 30
-            nh = 32
+            nh = 36
             nx = (SCREEN_W - nw) // 2
             ny = CONTENT_Y + 10
+            # Shadow
+            ss = pygame.Surface((nw + 4, nh + 4), pygame.SRCALPHA)
+            ss.fill((0, 0, 0, min(80, alpha // 3)))
+            self.screen.blit(ss, (nx + 2, ny + 2))
+            # Background
             ns = pygame.Surface((nw, nh), pygame.SRCALPHA)
-            ns.fill((30, 30, 30, min(220, alpha)))
+            ns.fill((25, 28, 32, min(230, alpha)))
             self.screen.blit(ns, (nx, ny))
-            pygame.draw.rect(self.screen, NEON_GREEN, (nx, ny, nw, nh), 1, border_radius=6)
-            self.screen.blit(ntxt, (nx + 15, ny + 6))
+            pygame.draw.rect(self.screen, NEON_GREEN, (nx, ny, nw, nh), 2, border_radius=8)
+            draw_pixel_corners(self.screen, pygame.Rect(nx, ny, nw, nh), NEON_GREEN, 3)
+            # Green glow
+            glow_a = min(40, alpha // 5)
+            gs = pygame.Surface((nw, nh), pygame.SRCALPHA)
+            gs.fill((*NEON_GREEN[:3], max(0, glow_a)))
+            self.screen.blit(gs, (nx, ny))
+            self.screen.blit(ntxt, (nx + 15, ny + 8))
 
     # ═══════════════════════════════════════════════════════════
     #  TOP BAR
@@ -388,7 +442,17 @@ class GameScreen:
     def _draw_top_bar(self, player: Player, ips: float):
         bar_rect = pygame.Rect(0, 0, SCREEN_W, TOP_BAR_H)
         pygame.draw.rect(self.screen, BG_PANEL, bar_rect)
-        # Bottom border line (neon cyan)
+        # Subtle gradient overlay
+        grad = pygame.Surface((SCREEN_W, TOP_BAR_H), pygame.SRCALPHA)
+        for gy in range(TOP_BAR_H):
+            a = int(8 * (1 - gy / TOP_BAR_H))
+            pygame.draw.line(grad, (0, 0, 0, a), (0, gy), (SCREEN_W, gy))
+        self.screen.blit(grad, (0, 0))
+        # Bottom border line (neon cyan) with glow
+        pulse = int(180 + 75 * math.sin(self.glow_t * 2.5))
+        glow_s = pygame.Surface((SCREEN_W, 4), pygame.SRCALPHA)
+        glow_s.fill((*NEON_CYAN[:3], max(0, pulse // 8)))
+        self.screen.blit(glow_s, (0, TOP_BAR_H - 3))
         pygame.draw.line(self.screen, NEON_CYAN, (0, TOP_BAR_H - 1),
                          (SCREEN_W, TOP_BAR_H - 1), 1)
 
@@ -499,6 +563,16 @@ class GameScreen:
             draw_icon_button(self.screen, rect, info["icon"], info["name"],
                              active=active, color=BG,
                              active_color=BG_PANEL, glow_t=self.glow_t)
+            # Active tab indicator bar
+            if active:
+                ind_w = min(tab_w - 12, 40)
+                ind_x = rect.centerx - ind_w // 2
+                pulse = int(180 + 75 * math.sin(self.glow_t * 3))
+                pygame.draw.rect(self.screen, NEON_CYAN,
+                                 (ind_x, nav_y, ind_w, 3), border_radius=1)
+                glow_s = pygame.Surface((ind_w + 8, 6), pygame.SRCALPHA)
+                glow_s.fill((*NEON_CYAN[:3], max(0, pulse // 6)))
+                self.screen.blit(glow_s, (ind_x - 4, nav_y - 1))
             # Dividers
             if i > 0:
                 pygame.draw.rect(self.screen, BORDER_LIGHT,
@@ -981,7 +1055,7 @@ class GameScreen:
         return y
 
     def _draw_defense_tab(self, player, y, margin):
-        """Defense tab — prestige + security upgrades."""
+        """Defense tab — real purchasable defense upgrades + stats."""
         w = PANEL_W - margin * 2
         x = PANEL_X + margin
 
@@ -990,31 +1064,90 @@ class GameScreen:
                                 color=NEON_MAGENTA, icon_name="snowflake")
         y += 4
 
-        # Security placeholder cards
-        defense_items = [
-            {"name": "Security System", "desc": "Protect against sabotage attacks",
-             "icon": "door", "color": NEON_MAGENTA},
-            {"name": "Firewall", "desc": "Block network hacks from rivals",
-             "icon": "snowflake", "color": NEON_CYAN},
-            {"name": "Insurance", "desc": "Recover faster from attacks",
-             "icon": "coin", "color": NEON_GREEN},
+        # Defense stats summary card
+        dmg_red = (1.0 - get_sabotage_damage_reduction(player)) * 100
+        blk_ch = get_sabotage_block_chance(player) * 100
+        inc_prot = (1.0 - get_sabotage_income_protection(player)) * 100
+        stat_h = 58
+        stat_rect = pygame.Rect(x, y, w, stat_h)
+        pygame.draw.rect(self.screen, BG_CARD, stat_rect, border_radius=8)
+        pulse = int(8 + 5 * math.sin(self.glow_t * 2))
+        pygame.draw.rect(self.screen, NEON_MAGENTA, stat_rect, 2, border_radius=8)
+        draw_pixel_corners(self.screen, stat_rect, NEON_MAGENTA, 3)
+        # Shield icon
+        self.screen.blit(icons.get_scaled("snowflake", 16), (x + 8, y + 6))
+        self.screen.blit(get_font(12, bold=True).render("DEFENSE STATUS", True, NEON_MAGENTA),
+                         (x + 28, y + 4))
+        # Stats bars
+        bar_w = (w - 20) // 3 - 4
+        bar_y = y + 24
+        stats = [
+            ("DMG Red", dmg_red, NEON_CYAN),
+            ("Block %", blk_ch, NEON_GREEN),
+            ("Inc Prot", inc_prot, NEON_YELLOW),
         ]
-        for item in defense_items:
-            card_h = 64
+        for i, (lbl, val, col) in enumerate(stats):
+            bx = x + 10 + i * (bar_w + 4)
+            self.screen.blit(get_font(9).render(lbl, True, TEXT_GRAY), (bx, bar_y))
+            draw_progress_bar(self.screen, bx, bar_y + 12, bar_w, 8,
+                              val / 100, color=col, show_shimmer=True, glow_t=self.glow_t)
+            self.screen.blit(get_font(9, bold=True).render(f"{val:.0f}%", True, col),
+                             (bx + bar_w - 24, bar_y))
+        y += stat_h + 8
+
+        # Defense upgrade cards (real, purchasable)
+        def_icons = {"def_firewall": "snowflake", "def_security": "door", "def_insurance": "coin"}
+        def_colors = {"def_firewall": NEON_CYAN, "def_security": NEON_MAGENTA, "def_insurance": NEON_GREEN}
+        for u in UPGRADE_DEFS:
+            if u["category"] != "Defense":
+                continue
+            uid = u["id"]
+            lvl = get_upgrade_level(player, uid)
+            maxed = lvl >= u["max_level"]
+            cost = upgrade_cost(uid, lvl) if not maxed else 0
+            affordable = can_buy(player, uid)
+            acc_col = def_colors.get(uid, NEON_MAGENTA)
+
+            card_h = 74
             mx_m, my_m = pygame.mouse.get_pos()
             card_rect = pygame.Rect(x, y, w, card_h)
             hovered = card_rect.collidepoint(mx_m, my_m)
             draw_card(self.screen, x, y, w, card_h, hover=hovered,
-                      accent_color=item["color"], glow_t=self.glow_t)
+                      accent_color=acc_col, glow_t=self.glow_t)
 
-            ico = icons.get_scaled(item["icon"], 16)
-            self.screen.blit(ico, (x + 10, y + 10))
-            name_txt = get_font(14, bold=True).render(item["name"], True, TEXT_WHITE)
-            self.screen.blit(name_txt, (x + 32, y + 8))
-            desc_txt = get_font(11).render(item["desc"], True, TEXT_GRAY)
-            self.screen.blit(desc_txt, (x + 32, y + 26))
+            ico = icons.get_scaled(def_icons.get(uid, "snowflake"), 16)
+            self.screen.blit(ico, (x + 10, y + 8))
+            name_txt = get_font(13, bold=True).render(u["name"], True, TEXT_WHITE)
+            self.screen.blit(name_txt, (x + 32, y + 6))
+            lvl_str = f"Lv {lvl}/{u['max_level']}" if not maxed else "MAX"
+            lvl_col = TEXT_GOLD if maxed else TEXT_CYAN
+            self.screen.blit(get_font(11).render(lvl_str, True, lvl_col),
+                             (x + 32 + name_txt.get_width() + 8, y + 8))
 
-            draw_locked_overlay(self.screen, card_rect, "COMING SOON", self.glow_t)
+            desc_txt = get_font(10).render(u["desc"], True, TEXT_GRAY)
+            self.screen.blit(desc_txt, (x + 32, y + 24))
+
+            # Effect readout
+            if uid == "def_firewall":
+                eff_str = f"Current: -{(1.0 - get_sabotage_damage_reduction(player))*100:.0f}% dmg"
+            elif uid == "def_security":
+                eff_str = f"Current: {get_sabotage_block_chance(player)*100:.0f}% block"
+            else:
+                eff_str = f"Current: -{(1.0 - get_sabotage_income_protection(player))*100:.0f}% loss"
+            self.screen.blit(get_font(10).render(eff_str, True, acc_col), (x + 32, y + 38))
+
+            # Progress bar
+            progress = lvl / u["max_level"] if u["max_level"] > 0 else 0
+            draw_progress_bar(self.screen, x + 32, y + 52, w - 180, 7, progress,
+                              color=acc_col, show_shimmer=True, glow_t=self.glow_t)
+
+            # Buy button
+            btn_label = "MAXED" if maxed else f"BUY {cost:,.0f}c"
+            btn_r = pygame.Rect(x + w - 130, y + 44, 120, 24)
+            draw_button(self.screen, btn_r, btn_label, affordable and not maxed, font_size=11)
+            if affordable and not maxed:
+                self._buttons.append((btn_r, "upgrade", uid))
+
             y += card_h + 6
 
         y += 8
@@ -1189,7 +1322,7 @@ class GameScreen:
         # Header
         crown_ico = icons.get_scaled("crown", 16)
         self.screen.blit(crown_ico, (lx, y))
-        title = get_font(16, bold=True).render("GUILD", True, NEON_YELLOW)
+        title = get_font(16, bold=True).render("GUILD NETWORK", True, NEON_YELLOW)
         self.screen.blit(title, (lx + 20, y))
         y += 24
 
@@ -1199,35 +1332,57 @@ class GameScreen:
             # ── CURRENT GUILD INFO ──
             guild = GUILDS_BY_ID.get(player.guild_id)
             if guild:
-                info_h = 90
+                gc = guild["color"]
+                info_h = 120
                 info_rect = pygame.Rect(lx, y, w, info_h)
-                pygame.draw.rect(self.screen, BG_CARD, info_rect, border_radius=8)
-                pygame.draw.rect(self.screen, guild["color"], info_rect, 2, border_radius=8)
-                draw_pixel_corners(self.screen, info_rect, guild["color"], 3)
+                pygame.draw.rect(self.screen, BG_CARD, info_rect, border_radius=10)
+                pygame.draw.rect(self.screen, gc, info_rect, 2, border_radius=10)
+                draw_pixel_corners(self.screen, info_rect, gc, 3)
 
                 glow_a = int(10 + 8 * math.sin(self.glow_t * 1.5))
                 gs = pygame.Surface((w, info_h), pygame.SRCALPHA)
-                gs.fill((*guild["color"][:3], max(0, glow_a)))
+                gs.fill((*gc[:3], max(0, glow_a)))
                 self.screen.blit(gs, (lx, y))
 
-                self.screen.blit(icons.get_scaled("crown", 16), (lx + 10, y + 8))
-                gname = get_font(14, bold=True).render(guild["name"], True, TEXT_WHITE)
-                self.screen.blit(gname, (lx + 32, y + 6))
-                motto = get_font(10).render(f'"{guild["motto"]}"', True, TEXT_GRAY)
-                self.screen.blit(motto, (lx + 32, y + 24))
+                # Guild badge circle
+                badge_cx = lx + 24
+                badge_cy = y + 24
+                pygame.draw.circle(self.screen, gc, (badge_cx, badge_cy), 14)
+                pygame.draw.circle(self.screen, (255, 255, 255), (badge_cx, badge_cy), 14, 2)
+                init = guild["name"][0] if guild["name"] else "G"
+                init_sf = get_font(14, bold=True).render(init, True, (255, 255, 255))
+                self.screen.blit(init_sf, init_sf.get_rect(center=(badge_cx, badge_cy)))
 
-                role_txt = get_font(10).render(
-                    f"Role: {player.guild_role.title()}  |  "
-                    f"Contributed: {player.guild_contribution:.0f}c", True, TEXT_GRAY)
-                self.screen.blit(role_txt, (lx + 10, y + 42))
+                gname = get_font(14, bold=True).render(guild["name"], True, TEXT_WHITE)
+                self.screen.blit(gname, (lx + 46, y + 8))
+                motto = get_font(10).render(f'"{guild["motto"]}"', True, TEXT_GRAY)
+                self.screen.blit(motto, (lx + 46, y + 26))
+
+                # Role badge
+                role_color = NEON_YELLOW if player.guild_role == "leader" else NEON_CYAN
+                role_label = "LEADER" if player.guild_role == "leader" else "MEMBER"
+                draw_badge(self.screen, lx + w - 60, y + 8, role_label, role_color, 9)
+
+                # Stats row
+                stats_y = y + 46
+                members = guild.get("members", 1)
+                level = guild.get("level", 1)
+                m_font = get_font(10)
+                m1 = m_font.render(f"Members: {members}", True, TEXT_GRAY)
+                surf = self.screen
+                surf.blit(m1, (lx + 10, stats_y))
+                m2 = m_font.render(f"Guild Level: {level}", True, TEXT_GRAY)
+                surf.blit(m2, (lx + 10, stats_y + 16))
+                m3 = m_font.render(f"Contributed: {player.guild_contribution:.0f}c", True, NEON_GREEN)
+                surf.blit(m3, (lx + 10, stats_y + 32))
 
                 bonus_txt = get_font(10).render(
                     f"Income +{guild['bonus_income']*100:.0f}%  |  "
                     f"Season XP +{guild['bonus_xp']*100:.0f}%", True, NEON_GREEN)
-                self.screen.blit(bonus_txt, (lx + 10, y + 58))
+                self.screen.blit(bonus_txt, (lx + 10, y + 100))
 
                 # Leave button
-                leave_btn = pygame.Rect(lx + w - 70, y + 62, 60, 20)
+                leave_btn = pygame.Rect(lx + w - 70, y + 96, 60, 20)
                 leave_hover = leave_btn.collidepoint(mx_m, my_m)
                 lc = TEXT_RED if leave_hover else (120, 60, 60)
                 pygame.draw.rect(self.screen, lc, leave_btn, border_radius=4)
@@ -1250,42 +1405,187 @@ class GameScreen:
                 self._buttons.append((donate_btn, "guild_donate", ""))
                 y += 40
 
+                # Guild Network Activity (simulated)
+                draw_separator(self.screen, lx, y, w)
+                y += 8
+                act_title = get_font(12, bold=True).render("NETWORK ACTIVITY", True, NEON_CYAN)
+                self.screen.blit(act_title, (lx, y))
+                y += 18
+
+                activities = [
+                    ("Chef_Mike joined the guild", "2m ago"),
+                    (f"Guild earned +{random.randint(10,50)}c bonus", "5m ago"),
+                    ("New perk unlocked!", "12m ago"),
+                ]
+                for act_text, act_time in activities:
+                    act_h = 28
+                    act_rect = pygame.Rect(lx, y, w, act_h)
+                    pygame.draw.rect(self.screen, BG_CARD, act_rect, border_radius=4)
+                    dot_c = NEON_GREEN
+                    pygame.draw.circle(self.screen, dot_c, (lx + 10, y + act_h // 2), 3)
+                    self.screen.blit(get_font(9).render(act_text, True, TEXT_WHITE),
+                                     (lx + 20, y + 4))
+                    time_sf = get_font(8).render(act_time, True, TEXT_DIM)
+                    self.screen.blit(time_sf, (lx + w - time_sf.get_width() - 6, y + 6))
+                    y += act_h + 2
+                y += 8
+
         else:
+            # ── NOT IN A GUILD ──
+
+            # Create Guild section
+            if self._guild_creating:
+                create_h = 170
+                cr_rect = pygame.Rect(lx, y, w, create_h)
+                pygame.draw.rect(self.screen, BG_CARD, cr_rect, border_radius=10)
+                pygame.draw.rect(self.screen, NEON_YELLOW, cr_rect, 2, border_radius=10)
+                draw_pixel_corners(self.screen, cr_rect, NEON_YELLOW, 3)
+
+                ct_label = get_font(13, bold=True).render("CREATE YOUR GUILD", True, NEON_YELLOW)
+                self.screen.blit(ct_label, (lx + 10, y + 8))
+
+                # Name input field
+                name_y = y + 30
+                name_rect = pygame.Rect(lx + 10, name_y, w - 20, 26)
+                pygame.draw.rect(self.screen, (50, 50, 50), name_rect, border_radius=4)
+                blink = int(self.glow_t * 2) % 2 == 0
+                border_c = NEON_CYAN if blink else BORDER_LIGHT
+                pygame.draw.rect(self.screen, border_c, name_rect, 1, border_radius=4)
+                display_name = self._guild_name_input
+                if not display_name:
+                    display_name = "Type guild name..."
+                    name_color = TEXT_DIM
+                else:
+                    name_color = TEXT_WHITE
+                cursor = "|" if blink and self._guild_name_input else ""
+                name_sf = get_font(11).render(display_name + cursor, True, name_color)
+                self.screen.blit(name_sf, (lx + 16, name_y + 5))
+
+                # Color selection
+                color_y = y + 62
+                cl = get_font(10).render("Choose color:", True, TEXT_GRAY)
+                self.screen.blit(cl, (lx + 10, color_y))
+                color_y += 16
+                csize = 20
+                cpad = 4
+                for ci, cc in enumerate(GUILD_COLORS):
+                    cx = lx + 10 + ci * (csize + cpad)
+                    cy = color_y
+                    if cx + csize > lx + w - 10:
+                        break
+                    cr = pygame.Rect(cx, cy, csize, csize)
+                    pygame.draw.rect(self.screen, cc, cr, border_radius=4)
+                    if ci == self._guild_color_idx:
+                        pygame.draw.rect(self.screen, (255, 255, 255), cr, 2, border_radius=4)
+                    self._buttons.append((cr, "guild_color_pick", str(ci)))
+
+                # Cost display
+                cost_y = y + 104
+                cost_txt = get_font(10).render(
+                    f"Cost: {_GUILD_CREATE_COST}c", True,
+                    NEON_GREEN if player.coins >= _GUILD_CREATE_COST else TEXT_RED)
+                self.screen.blit(cost_txt, (lx + 10, cost_y))
+
+                # Create button
+                btn_y = y + 122
+                can_create = (len(self._guild_name_input.strip()) >= 2
+                              and player.coins >= _GUILD_CREATE_COST)
+                cr_btn = pygame.Rect(lx + 10, btn_y, w // 2 - 20, 28)
+                cr_hover = cr_btn.collidepoint(mx_m, my_m)
+                if can_create:
+                    bc = BTN_BUY_H if cr_hover else BTN_BUY
+                else:
+                    bc = BTN_DISABLED
+                pygame.draw.rect(self.screen, bc, cr_btn, border_radius=6)
+                pygame.draw.rect(self.screen, NEON_YELLOW, cr_btn, 1, border_radius=6)
+                ct = get_font(11, bold=True).render("CREATE", True,
+                                                    TEXT_WHITE if can_create else BTN_DIS_TXT)
+                self.screen.blit(ct, ct.get_rect(center=cr_btn.center))
+                if can_create:
+                    self._buttons.append((cr_btn, "guild_create_confirm", ""))
+
+                # Cancel button
+                cancel_btn = pygame.Rect(lx + w // 2, btn_y, w // 2 - 10, 28)
+                cancel_h = cancel_btn.collidepoint(mx_m, my_m)
+                pygame.draw.rect(self.screen, TEXT_RED if cancel_h else (100, 50, 50),
+                                 cancel_btn, border_radius=6)
+                cl_t = get_font(11, bold=True).render("CANCEL", True, TEXT_WHITE)
+                self.screen.blit(cl_t, cl_t.get_rect(center=cancel_btn.center))
+                self._buttons.append((cancel_btn, "guild_toggle_create", ""))
+
+                y += create_h + 8
+
+            else:
+                # CREATE GUILD button (collapsed)
+                create_btn_h = 44
+                create_rect = pygame.Rect(lx, y, w, create_btn_h)
+                ch = create_rect.collidepoint(mx_m, my_m)
+                draw_card(self.screen, lx, y, w, create_btn_h, hover=ch,
+                          accent_color=NEON_YELLOW, glow_t=self.glow_t)
+                self.screen.blit(icons.get_scaled("crown", 16), (lx + 10, y + 6))
+                crt = get_font(13, bold=True).render("+ CREATE GUILD", True, NEON_YELLOW)
+                self.screen.blit(crt, (lx + 34, y + 6))
+                cost_sub = get_font(10).render(
+                    f"Build your own empire  |  {_GUILD_CREATE_COST}c", True, TEXT_GRAY)
+                self.screen.blit(cost_sub, (lx + 34, y + 24))
+                self._buttons.append((create_rect, "guild_toggle_create", ""))
+                y += create_btn_h + 8
+
             # ── JOIN A GUILD ──
-            join_title = get_font(13, bold=True).render("JOIN A GUILD", True, NEON_CYAN)
+            draw_separator(self.screen, lx, y, w)
+            y += 8
+            join_title = get_font(13, bold=True).render("JOIN EXISTING GUILD", True, NEON_CYAN)
             self.screen.blit(join_title, (lx, y))
-            y += 18
+            y += 20
 
             for guild in GUILDS:
-                card_h = 64
+                card_h = 72
                 card_rect = pygame.Rect(lx, y, w, card_h)
                 hovered = card_rect.collidepoint(mx_m, my_m)
                 gc = guild["color"]
                 draw_card(self.screen, lx, y, w, card_h, hover=hovered,
                           accent_color=gc, glow_t=self.glow_t)
 
-                self.screen.blit(icons.get_scaled("crown", 14), (lx + 8, y + 6))
+                # Guild badge circle
+                badge_cx = lx + 22
+                badge_cy = y + 20
+                pygame.draw.circle(self.screen, gc, (badge_cx, badge_cy), 12)
+                pygame.draw.circle(self.screen, (255, 255, 255), (badge_cx, badge_cy), 12, 1)
+                init = guild["name"][0] if guild["name"] else "G"
+                init_sf = get_font(11, bold=True).render(init, True, (255, 255, 255))
+                self.screen.blit(init_sf, init_sf.get_rect(center=(badge_cx, badge_cy)))
+
                 gn = get_font(12, bold=True).render(guild["name"], True, TEXT_WHITE)
-                self.screen.blit(gn, (lx + 28, y + 4))
-                gm = get_font(10).render(f'"{guild["motto"]}"', True, TEXT_GRAY)
-                self.screen.blit(gm, (lx + 28, y + 20))
-                bonus = get_font(10).render(
+                self.screen.blit(gn, (lx + 40, y + 4))
+                gm = get_font(9).render(f'"{guild["motto"]}"', True, TEXT_GRAY)
+                self.screen.blit(gm, (lx + 40, y + 20))
+
+                members = guild.get("members", 0)
+                level = guild.get("level", 1)
+                stats = f"Lv{level}  |  {members} members"
+                if guild.get("created_by") == "player":
+                    stats += "  |  Player Guild"
+                self.screen.blit(get_font(9).render(stats, True, TEXT_DIM), (lx + 40, y + 34))
+
+                bonus = get_font(9).render(
                     f"Income +{guild['bonus_income']*100:.0f}%  |  "
-                    f"Season XP +{guild['bonus_xp']*100:.0f}%", True, NEON_GREEN)
-                self.screen.blit(bonus, (lx + 28, y + 36))
+                    f"XP +{guild['bonus_xp']*100:.0f}%", True, NEON_GREEN)
+                self.screen.blit(bonus, (lx + 40, y + 48))
 
                 # Join button
-                jbtn = pygame.Rect(lx + w - 56, y + 36, 48, 20)
+                jbtn = pygame.Rect(lx + w - 56, y + 40, 48, 22)
                 jh = jbtn.collidepoint(mx_m, my_m)
                 jc = BTN_BUY_H if jh else BTN_BUY
-                pygame.draw.rect(self.screen, jc, jbtn, border_radius=4)
-                pygame.draw.rect(self.screen, gc, jbtn, 1, border_radius=4)
+                pygame.draw.rect(self.screen, jc, jbtn, border_radius=5)
+                pygame.draw.rect(self.screen, gc, jbtn, 1, border_radius=5)
                 jt = get_font(9, bold=True).render("JOIN", True, TEXT_WHITE)
                 self.screen.blit(jt, jt.get_rect(center=jbtn.center))
                 self._buttons.append((jbtn, "guild_join", guild["id"]))
                 y += card_h + 4
 
         # Guild perks section
+        y += 8
+        draw_separator(self.screen, lx, y, w)
         y += 8
         perks_title = get_font(13, bold=True).render("GUILD PERKS", True, NEON_CYAN)
         self.screen.blit(perks_title, (lx, y))

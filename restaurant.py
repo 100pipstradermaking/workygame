@@ -1126,6 +1126,17 @@ class Restaurant:
         # Decorations
         self._draw_decorations(surf, ox, oy)
 
+        # Station ambient glow (drawn before stations for layering)
+        for st in self.stations:
+            if st.active_timer > 0:
+                gx = int(st.px + ox)
+                gy = int(st.py + oy)
+                glow_r = 24
+                gs = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
+                ga = int(20 * min(1.0, st.active_timer))
+                pygame.draw.circle(gs, (*st.accent, ga), (glow_r, glow_r), glow_r)
+                surf.blit(gs, (gx - glow_r, gy - glow_r))
+
         # Stations (with animated icons)
         for st in self.stations:
             st.draw(surf, ox, oy, self._anim_t)
@@ -1147,6 +1158,9 @@ class Restaurant:
         # Music particles
         self._draw_music_particles(surf, ox, oy)
 
+        # Ambient sparkle particles
+        self._draw_ambient_sparkles(surf, ox, oy)
+
         # Badges
         if self._attractiveness > 0:
             self._draw_attractiveness_badge(surf, area_rect)
@@ -1154,6 +1168,30 @@ class Restaurant:
             self._draw_rating_badge(surf, area_rect)
 
         surf.set_clip(clip_prev)
+
+    def _draw_ambient_sparkles(self, surf: pygame.Surface, ox: int, oy: int):
+        """Draw subtle ambient sparkle effects for visual polish."""
+        if self._floor_lvl < 2:
+            return
+        t = self._anim_t
+        count = min(5, self._floor_lvl + 1)
+        for i in range(count):
+            phase = t * 0.6 + i * 2.3
+            life = (math.sin(phase) + 1) / 2  # 0-1 cycle
+            if life < 0.15:
+                continue
+            sx = int((math.sin(phase * 0.7 + i) * 0.4 + 0.5) * self.FLOOR_W * TILE_SIZE)
+            sy = int((math.cos(phase * 0.5 + i * 1.3) * 0.4 + 0.5) * self.FLOOR_H * TILE_SIZE)
+            alpha = int(60 * life)
+            sz = int(2 + life * 2)
+            sparkle = pygame.Surface((sz * 2, sz * 2), pygame.SRCALPHA)
+            pygame.draw.circle(sparkle, (255, 255, 230, alpha), (sz, sz), sz)
+            # Cross highlight
+            pygame.draw.line(sparkle, (255, 255, 255, min(255, alpha + 40)),
+                             (sz, 0), (sz, sz * 2))
+            pygame.draw.line(sparkle, (255, 255, 255, min(255, alpha + 40)),
+                             (0, sz), (sz * 2, sz))
+            surf.blit(sparkle, (ox + sx - sz, oy + sy - sz))
 
     def _draw_particles(self, surf: pygame.Surface, ox: int, oy: int):
         """Draw all generic particles (steam, sparks, coins, sparkles)."""
@@ -1188,6 +1226,18 @@ class Restaurant:
                 pygame.draw.rect(surf, c,
                                  (ox + tx * TILE_SIZE, oy + ty * TILE_SIZE,
                                   TILE_SIZE, TILE_SIZE))
+        # Floor grout lines (subtle)
+        grout_c = (max(0, self.floor_color_b[0] - 8),
+                   max(0, self.floor_color_b[1] - 8),
+                   max(0, self.floor_color_b[2] - 8))
+        for ty in range(self.FLOOR_H + 1):
+            pygame.draw.line(surf, grout_c,
+                             (ox, oy + ty * TILE_SIZE),
+                             (ox + self.FLOOR_W * TILE_SIZE, oy + ty * TILE_SIZE))
+        for tx in range(self.FLOOR_W + 1):
+            pygame.draw.line(surf, grout_c,
+                             (ox + tx * TILE_SIZE, oy),
+                             (ox + tx * TILE_SIZE, oy + self.FLOOR_H * TILE_SIZE))
         # Floor shine effect if upgraded
         if self._floor_lvl >= 3:
             shine_alpha = int(8 + 4 * math.sin(self._anim_t * 1.5))
@@ -1197,27 +1247,56 @@ class Restaurant:
                         s = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
                         s.fill((255, 255, 255, max(0, shine_alpha)))
                         surf.blit(s, (ox + tx * TILE_SIZE, oy + ty * TILE_SIZE))
+        # Ambient warm light gradient from center
+        if self._floor_lvl >= 1:
+            center_x = self.FLOOR_W * TILE_SIZE // 2
+            center_y = self.FLOOR_H * TILE_SIZE // 2
+            grad_size = max(self.FLOOR_W, self.FLOOR_H) * TILE_SIZE
+            gs = pygame.Surface((grad_size, grad_size), pygame.SRCALPHA)
+            alpha = int(6 + 3 * math.sin(self._anim_t * 0.8))
+            pygame.draw.circle(gs, (255, 220, 150, max(0, alpha)),
+                               (grad_size // 2, grad_size // 2), grad_size // 3)
+            surf.blit(gs, (ox + center_x - grad_size // 2,
+                           oy + center_y - grad_size // 2))
 
     def _draw_walls(self, surf: pygame.Surface, ox: int, oy: int, w: int, h: int):
         thickness = TILE_SIZE
+        wc = self.wall_color
+        wt = self.wall_top
+        wc_dark = (max(0, wc[0] - 15), max(0, wc[1] - 15), max(0, wc[2] - 12))
 
-        # Top wall
-        pygame.draw.rect(surf, self.wall_color, (ox, oy, w, thickness))
-        pygame.draw.rect(surf, self.wall_top, (ox, oy, w, 3))
+        # Top wall with wainscoting
+        pygame.draw.rect(surf, wc, (ox, oy, w, thickness))
+        pygame.draw.rect(surf, wt, (ox, oy, w, 3))
+        # Baseboard highlight
+        pygame.draw.rect(surf, wc_dark, (ox, oy + thickness - 2, w, 2))
 
         # Left wall
-        pygame.draw.rect(surf, self.wall_color, (ox, oy, thickness, h))
+        pygame.draw.rect(surf, wc, (ox, oy, thickness, h))
+        pygame.draw.rect(surf, wc_dark, (ox + thickness - 2, oy, 2, h))
 
         # Right wall
-        pygame.draw.rect(surf, self.wall_color, (ox + w - thickness, oy, thickness, h))
+        pygame.draw.rect(surf, wc, (ox + w - thickness, oy, thickness, h))
+        pygame.draw.rect(surf, wc_dark, (ox + w - thickness, oy, 2, h))
 
         # Bottom wall (with door gap)
         door_x = 14 * TILE_SIZE
         door_w = 4 * TILE_SIZE
-        pygame.draw.rect(surf, self.wall_color, (ox, oy + h - thickness, door_x, thickness))
-        pygame.draw.rect(surf, self.wall_color,
+        pygame.draw.rect(surf, wc, (ox, oy + h - thickness, door_x, thickness))
+        pygame.draw.rect(surf, wc,
                          (ox + door_x + door_w, oy + h - thickness,
                           w - door_x - door_w, thickness))
+        # Top baseboard on bottom wall
+        pygame.draw.rect(surf, wc_dark, (ox, oy + h - thickness, door_x, 2))
+        pygame.draw.rect(surf, wc_dark,
+                         (ox + door_x + door_w, oy + h - thickness,
+                          w - door_x - door_w, 2))
+
+        # Corner accents
+        corner_c = (min(255, wt[0] + 10), min(255, wt[1] + 8), min(255, wt[2] + 5))
+        for cx, cy in [(ox, oy), (ox + w - thickness, oy),
+                       (ox, oy + h - thickness), (ox + w - thickness, oy + h - thickness)]:
+            pygame.draw.rect(surf, corner_c, (cx, cy, thickness, thickness), 1)
 
     def _draw_decorations(self, surf: pygame.Surface, ox: int, oy: int):
         for dec in self.decorations:

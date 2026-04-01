@@ -204,8 +204,14 @@ def draw_stat_row(surf: pygame.Surface, x: int, y: int,
 
 
 def draw_panel_bg(surf: pygame.Surface, rect: pygame.Rect, glow_t: float = 0):
-    """Draw a light panel background with subtle dot pattern."""
+    """Draw a light panel background with subtle dot pattern and edge shadow."""
     pygame.draw.rect(surf, BG, rect)
+    # Left edge inner shadow for depth
+    shadow = pygame.Surface((6, rect.height), pygame.SRCALPHA)
+    for x in range(6):
+        alpha = int(12 * (1 - x / 6))
+        pygame.draw.line(shadow, (0, 0, 0, alpha), (x, 0), (x, rect.height))
+    surf.blit(shadow, (rect.x, rect.y))
     # Subtle dot grid pattern (light theme equivalent of scanlines)
     for gy in range(0, rect.height, 16):
         for gx in range(0, rect.width, 16):
