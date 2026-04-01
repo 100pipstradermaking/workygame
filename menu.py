@@ -64,6 +64,49 @@ class StartMenu:
         self._confetti: list[dict] = []
         self._confetti_timer = 0.0
 
+        # ── Extra menu animations ──
+        # Light rays behind banner
+        self._menu_rays: list[dict] = []
+        for i in range(6):
+            self._menu_rays.append({
+                "angle": i * (math.tau / 6) + random.uniform(-0.2, 0.2),
+                "length": random.uniform(80, 160),
+                "width": random.uniform(20, 40),
+                "speed": random.uniform(0.1, 0.3),
+                "color": random.choice([NEON_CYAN, NEON_YELLOW, ACCENT, NEON_GREEN]),
+                "alpha": random.randint(10, 20),
+            })
+
+        # Twinkling sparkles
+        self._menu_sparkles: list[dict] = []
+        for _ in range(20):
+            self._menu_sparkles.append({
+                "x": random.uniform(0, self.sw),
+                "y": random.uniform(0, self.sh * 0.5),
+                "phase": random.uniform(0, math.tau),
+                "speed": random.uniform(2, 5),
+                "size": random.uniform(1.5, 3),
+                "color": random.choice([NEON_CYAN, NEON_YELLOW, NEON_MAGENTA,
+                                        (255, 255, 255), NEON_GREEN]),
+            })
+
+        # Floating menu food silhouettes
+        self._menu_floats: list[dict] = []
+        for _ in range(5):
+            self._menu_floats.append({
+                "x": random.uniform(10, self.sw - 10),
+                "y": random.uniform(50, self.sh - 80),
+                "phase": random.uniform(0, math.tau),
+                "bob_speed": random.uniform(0.6, 1.5),
+                "bob_amp": random.uniform(6, 14),
+                "vx": random.uniform(-5, 5),
+                "size": random.randint(10, 16),
+                "alpha": random.randint(20, 40),
+                "kind": random.choice(["burger", "fries", "coin"]),
+                "rot": 0.0,
+                "vr": random.uniform(-0.3, 0.3),
+            })
+
         # Results
         self.registered = False
         self.reg_data: dict | None = None
@@ -245,6 +288,16 @@ class StartMenu:
                 alive.append(p)
         self._confetti = alive
 
+        # Menu floats update
+        for mf in self._menu_floats:
+            mf["x"] += mf["vx"] * dt
+            mf["rot"] += mf["vr"] * dt
+            mf["phase"] += mf["bob_speed"] * dt
+            if mf["x"] < -20:
+                mf["x"] = self.sw + 10
+            elif mf["x"] > self.sw + 20:
+                mf["x"] = -10
+
     def draw(self):
         self.screen.fill(BG_DARK)
 
@@ -263,6 +316,38 @@ class StartMenu:
             self.screen.blit(fade_surf, (0, 0))
 
     # ── Main menu drawing ────────────────────────────────────
+    def _draw_text_with_shadow(self, font, text, color, pos, shadow_color=(0, 0, 0),
+                                shadow_offset=1, center=False, alpha=255):
+        """Render text with a shadow for better readability."""
+        if alpha < 255:
+            shadow = font.render(text, True, shadow_color)
+            sh_surf = pygame.Surface(shadow.get_size(), pygame.SRCALPHA)
+            sh_surf.blit(shadow, (0, 0))
+            sh_surf.set_alpha(alpha // 2)
+            main = font.render(text, True, color)
+            m_surf = pygame.Surface(main.get_size(), pygame.SRCALPHA)
+            m_surf.blit(main, (0, 0))
+            m_surf.set_alpha(alpha)
+            if center:
+                sr = sh_surf.get_rect(center=(pos[0] + shadow_offset, pos[1] + shadow_offset))
+                mr = m_surf.get_rect(center=pos)
+            else:
+                sr = (pos[0] + shadow_offset, pos[1] + shadow_offset)
+                mr = pos
+            self.screen.blit(sh_surf, sr)
+            self.screen.blit(m_surf, mr)
+        else:
+            shadow = font.render(text, True, shadow_color)
+            main = font.render(text, True, color)
+            if center:
+                sr = shadow.get_rect(center=(pos[0] + shadow_offset, pos[1] + shadow_offset))
+                mr = main.get_rect(center=pos)
+            else:
+                sr = (pos[0] + shadow_offset, pos[1] + shadow_offset)
+                mr = pos
+            self.screen.blit(shadow, sr)
+            self.screen.blit(main, mr)
+
     def _draw_main_menu(self):
         cx = self.sw // 2
 
@@ -273,23 +358,26 @@ class StartMenu:
         bob = math.sin(self.anim_frame * 0.12) * 3
         self._draw_pixel_banner(cx, 40 + int(bob))
 
-        # ── Subtitle ──
-        sub = self.font_sub.render("Burger Economy Simulator", True, TEXT_GRAY)
-        sub_rect = sub.get_rect(center=(cx, 188))
-        self.screen.blit(sub, sub_rect)
+        # ── Subtitle with shadow for readability ──
+        self._draw_text_with_shadow(
+            self.font_sub, "Burger Economy Simulator",
+            TEXT_WHITE, (cx, 188), shadow_color=(200, 195, 185),
+            shadow_offset=1, center=True)
 
         # Burger icons flanking subtitle
+        sub_w = self.font_sub.size("Burger Economy Simulator")[0]
         bi = icons.get_scaled("burger", 20)
-        self.screen.blit(bi, (sub_rect.x - 26, 180))
-        self.screen.blit(bi, (sub_rect.right + 8, 180))
+        self.screen.blit(bi, (cx - sub_w // 2 - 26, 180))
+        self.screen.blit(bi, (cx + sub_w // 2 + 8, 180))
 
         # ── Animated mascots (two workers on each side of a pixel grill) ──
         self._draw_grill_scene(cx, 270)
 
-        # Tagline
-        tagline = self.font_sm.render(
-            '"Salute the people who keep this world running"', True, TEXT_GRAY)
-        self.screen.blit(tagline, tagline.get_rect(center=(cx, 350)))
+        # Tagline with shadow
+        self._draw_text_with_shadow(
+            self.font_sm, '"Salute the people who keep this world running"',
+            TEXT_WHITE, (cx, 350), shadow_color=(200, 195, 185),
+            shadow_offset=1, center=True)
 
         # ── Buttons ──
         self._draw_menu_btn(pygame.Rect(cx - 130, 385, 260, 50),
@@ -313,13 +401,17 @@ class StartMenu:
         if getattr(self, '_show_lb', False):
             self._draw_menu_leaderboard()
 
-        # Version
-        ver = self.font_sm.render("v0.2.0", True, TEXT_GRAY)
-        self.screen.blit(ver, (10, self.sh - 20))
+        # Version — with shadow
+        self._draw_text_with_shadow(
+            self.font_sm, "v0.2.0", TEXT_WHITE, (10, self.sh - 20),
+            shadow_color=(200, 195, 185), shadow_offset=1)
 
-        # Website
-        site = self.font_sm.render("workyworker.xyz", True, NEON_CYAN)
-        self.screen.blit(site, (self.sw - site.get_width() - 10, self.sh - 20))
+        # Website — with shadow
+        site_w = self.font_sm.size("workyworker.xyz")[0]
+        self._draw_text_with_shadow(
+            self.font_sm, "workyworker.xyz", NEON_CYAN,
+            (self.sw - site_w - 10, self.sh - 20),
+            shadow_color=(0, 100, 102), shadow_offset=1)
 
     # ── Pixel banner renderer ────────────────────────────────
     _BANNER_FONT = {
@@ -356,11 +448,13 @@ class StartMenu:
             for ci, ch in enumerate(word):
                 bitmap = self._BANNER_FONT.get(ch, self._BANNER_FONT[' '])
                 lx = sx + ci * (LW + GAP) * PX
+                # Wave animation per letter
+                wave_off = int(2 * math.sin(self.anim_frame * 0.08 + ci * 0.7 + li * 2))
                 for row in range(LH):
                     for col in range(LW):
                         if bitmap[row][col] == '#':
                             px_x = lx + col * PX
-                            px_y = by + row * PX
+                            px_y = by + row * PX + wave_off
                             # Shadow
                             pygame.draw.rect(self.screen, (0, 0, 0, 40),
                                              (px_x + 1, px_y + 1, PX, PX))
@@ -376,7 +470,40 @@ class StartMenu:
                                                  (px_x, px_y, PX, 1))
 
     def _draw_bg_scene(self):
-        """Animated kitchen background — light theme with floating particles."""
+        """Animated kitchen background — light theme with light rays, sparkles, and particles."""
+        # Light rays behind banner area
+        ray_cx = self.sw // 2
+        ray_cy = 100
+        for ray in self._menu_rays:
+            angle = ray["angle"] + self.anim_timer * ray["speed"] * 5
+            length = ray["length"] + 15 * math.sin(self.anim_timer * 7 + ray["angle"])
+            w = ray["width"]
+            alpha = ray["alpha"]
+            end_x = ray_cx + math.cos(angle) * length
+            end_y = ray_cy + math.sin(angle) * length
+            perp_x = math.cos(angle + math.pi / 2) * w / 2
+            perp_y = math.sin(angle + math.pi / 2) * w / 2
+            pts = [(ray_cx, ray_cy),
+                   (int(end_x + perp_x), int(end_y + perp_y)),
+                   (int(end_x - perp_x), int(end_y - perp_y))]
+            s = pygame.Surface((self.sw, self.sh), pygame.SRCALPHA)
+            pygame.draw.polygon(s, (*ray["color"], alpha), pts)
+            self.screen.blit(s, (0, 0))
+
+        # Twinkling sparkles
+        t = self.anim_frame * 0.12 + self.anim_timer
+        for sp in self._menu_sparkles:
+            twinkle = 0.5 + 0.5 * math.sin(t * sp["speed"] + sp["phase"])
+            alpha = int(25 + 60 * twinkle)
+            size = sp["size"] * (0.6 + 0.4 * twinkle)
+            r = max(1, int(size))
+            surf = pygame.Surface((r * 4, r * 4), pygame.SRCALPHA)
+            c = r * 2
+            pygame.draw.rect(surf, (*sp["color"], alpha), (c - r, c - 1, r * 2, 2))
+            pygame.draw.rect(surf, (*sp["color"], alpha), (c - 1, c - r, 2, r * 2))
+            pygame.draw.circle(surf, (*sp["color"], min(255, alpha + 30)), (c, c), max(1, r // 2))
+            self.screen.blit(surf, (int(sp["x"]) - c, int(sp["y"]) - c))
+
         # Tile floor bottom
         floor_y = self.sh - 60
         for gx in range(0, self.sw, 24):
@@ -385,6 +512,27 @@ class StartMenu:
                              (gx, floor_y, 24, self.sh - floor_y))
         pygame.draw.line(self.screen, (200, 195, 185),
                          (0, floor_y), (self.sw, floor_y), 2)
+
+        # Floating food silhouettes
+        for mf in self._menu_floats:
+            bob_y = mf["bob_amp"] * math.sin(t * mf["bob_speed"] + mf["phase"])
+            x, y = int(mf["x"]), int(mf["y"] + bob_y)
+            sz, alpha = mf["size"], mf["alpha"]
+            surf = pygame.Surface((sz * 2, sz * 2), pygame.SRCALPHA)
+            if mf["kind"] == "burger":
+                pygame.draw.ellipse(surf, (210, 160, 60, alpha), (2, 2, sz * 2 - 4, sz - 2))
+                pygame.draw.ellipse(surf, (120, 60, 30, alpha), (4, sz // 2, sz * 2 - 8, sz // 2))
+                pygame.draw.ellipse(surf, (200, 150, 55, alpha), (3, sz, sz * 2 - 6, sz - 4))
+            elif mf["kind"] == "fries":
+                pygame.draw.rect(surf, (220, 50, 40, alpha), (sz // 2, sz // 2, sz, sz), border_radius=2)
+                for fx in range(3):
+                    fx_x = sz // 2 + 3 + fx * (sz // 3)
+                    pygame.draw.rect(surf, (255, 220, 50, alpha), (fx_x, 2, 3, sz // 2 + 2))
+            else:  # coin
+                pygame.draw.circle(surf, (255, 200, 50, alpha), (sz, sz), sz - 2)
+                pygame.draw.circle(surf, (255, 230, 100, alpha // 2), (sz, sz), sz - 4)
+            rotated = pygame.transform.rotate(surf, mf["rot"] * 57.3)
+            self.screen.blit(rotated, (x - sz, y - sz))
 
         # Floating ingredient particles
         for i in range(20):
@@ -475,9 +623,11 @@ class StartMenu:
         pygame.draw.rect(self.screen, NEON_CYAN, panel, 2, border_radius=8)
         draw_pixel_corners(self.screen, panel, NEON_CYAN, 3)
 
-        # Title
-        title = self.font_md.render("OPEN YOUR BURGER JOINT", True, NEON_CYAN)
-        self.screen.blit(title, title.get_rect(center=(cx, 160)))
+        # Title with shadow
+        self._draw_text_with_shadow(
+            self.font_md, "OPEN YOUR BURGER JOINT",
+            NEON_CYAN, (cx, 160), shadow_color=(0, 120, 122),
+            shadow_offset=1, center=True)
 
         # Mascot
         self.mascot.draw(self.screen, cx, 230,
@@ -499,8 +649,8 @@ class StartMenu:
             "Name your burger joint..."
         )
 
-        # Info text
-        info = self.font_sm.render("You'll start with 1 worker + 50 coins", True, TEXT_GRAY)
+        # Info text — darker for readability on white panel
+        info = self.font_sm.render("You'll start with 1 worker + 50 coins", True, (60, 70, 75))
         self.screen.blit(info, info.get_rect(center=(cx, 445)))
 
         # Error
@@ -517,28 +667,33 @@ class StartMenu:
                             "BACK", (180, 180, 190), (200, 200, 210), "door")
 
     def _draw_input_field(self, rect, label, value, active, placeholder=""):
-        # Label
-        lbl = self.font_sm.render(label, True, TEXT_WHITE)
+        # Label — bold dark color for readability on white panel
+        lbl = self.font_sm.render(label, True, (30, 35, 40))
         self.screen.blit(lbl, (rect.x, rect.y - 18))
 
         # Field background (light theme)
         bg_color = (255, 255, 255) if active else (248, 245, 240)
         border_color = NEON_CYAN if active else BORDER
+        # Active glow
+        if active:
+            glow = pygame.Surface((rect.w + 6, rect.h + 6), pygame.SRCALPHA)
+            glow.fill((*NEON_CYAN, 25))
+            self.screen.blit(glow, (rect.x - 3, rect.y - 3))
         pygame.draw.rect(self.screen, bg_color, rect, border_radius=6)
         pygame.draw.rect(self.screen, border_color, rect, 2, border_radius=6)
 
         if value:
-            txt = self.font_input.render(value, True, TEXT_WHITE)
+            txt = self.font_input.render(value, True, (25, 30, 35))
             self.screen.blit(txt, (rect.x + 10, rect.y + 8))
         else:
-            txt = self.font_input.render(placeholder, True, (178, 190, 195))
+            txt = self.font_input.render(placeholder, True, (160, 170, 175))
             self.screen.blit(txt, (rect.x + 10, rect.y + 8))
 
         # Cursor
         if active and int(self.cursor_blink * 2) % 2 == 0:
             cursor_x = rect.x + 10 + 2
             if value:
-                val_surf = self.font_input.render(value, True, TEXT_WHITE)
+                val_surf = self.font_input.render(value, True, (25, 30, 35))
                 cursor_x += val_surf.get_width()
             pygame.draw.rect(self.screen, NEON_CYAN, (cursor_x, rect.y + 8, 2, 24))
 
@@ -606,7 +761,7 @@ class StartMenu:
             self.screen.blit(rank_txt, (px + 34, y))
 
             name_txt = self.font_sm.render(
-                f"{entry['name'][:12]}  -  {entry['restaurant'][:12]}", True, TEXT_WHITE)
+                f"{entry['name'][:12]}  -  {entry['restaurant'][:12]}", True, (30, 35, 40))
             self.screen.blit(name_txt, (px + 60, y + 2))
 
             score_str = f"{entry['score']:,.0f}"
@@ -616,9 +771,9 @@ class StartMenu:
             y += 30
 
         if not entries:
-            no_data = self.font_sm.render("No entries yet — play a game first!", True, TEXT_GRAY)
+            no_data = self.font_sm.render("No entries yet \u2014 play a game first!", True, (60, 70, 75))
             self.screen.blit(no_data, no_data.get_rect(center=(cx, py + ph // 2)))
 
         # Close hint
-        hint = self.font_sm.render("Click LEADERBOARD again to close", True, TEXT_GRAY)
+        hint = self.font_sm.render("Click LEADERBOARD again to close", True, (60, 70, 75))
         self.screen.blit(hint, hint.get_rect(center=(cx, py + ph - 20)))
